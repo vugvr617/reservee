@@ -3,47 +3,50 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Clock, Calendar, Timer, Users, AlertCircle } from "lucide-react";
+import { Clock, Loader2, Phone } from "lucide-react";
 import { useState } from "react";
+import { saveStep2 } from "../actions";
+import { TimeSlot, VenueData } from "../types";
+import { DEFAULT_SCHEDULE } from "../constants";
 
 interface Step2BusinessDetailsProps {
   onNext: () => void;
   onBack: () => void;
-}
-
-interface TimeSlot {
-  day: string;
-  open: string;
-  close: string;
-  closed: boolean;
+  initialData?: VenueData | null;
 }
 
 export default function Step2BusinessDetails({
   onNext,
   onBack,
+  initialData,
 }: Step2BusinessDetailsProps) {
   const [formData, setFormData] = useState({
-    reservationWindow: "30",
-    reservationDuration: "90",
-    maxPartySize: "12",
-    minHeadsUp: "1",
+    fallbackPhone: initialData?.fallbackPhone || "",
   });
 
-  const [schedule, setSchedule] = useState<TimeSlot[]>([
-    { day: "Monday", open: "09:00", close: "22:00", closed: false },
-    { day: "Tuesday", open: "09:00", close: "22:00", closed: false },
-    { day: "Wednesday", open: "09:00", close: "22:00", closed: false },
-    { day: "Thursday", open: "09:00", close: "22:00", closed: false },
-    { day: "Friday", open: "09:00", close: "22:00", closed: false },
-    { day: "Saturday", open: "09:00", close: "22:00", closed: false },
-    { day: "Sunday", open: "09:00", close: "22:00", closed: false },
-  ]);
+  const [schedule, setSchedule] = useState<TimeSlot[]>(
+    initialData?.schedule || DEFAULT_SCHEDULE
+  );
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // This will be where we save data later
-    console.log("Onboarding complete", { formData, schedule });
-    alert("Onboarding complete! (Non-functional for now)");
+    setIsLoading(true);
+    setError(null);
+
+    const result = await saveStep2({
+      ...formData,
+      schedule,
+    });
+
+    if (result.success) {
+      onNext();
+    } else {
+      setError(result.error || "Something went wrong");
+    }
+
+    setIsLoading(false);
   };
 
   const handleChange = (field: string, value: string) => {
@@ -141,122 +144,46 @@ export default function Step2BusinessDetails({
           </div>
         </div>
 
-        {/* Reservation Policies */}
-        <div className="grid grid-cols-2 gap-4">
-          {/* Reservation Window */}
-          <div className="space-y-2">
-            <Label htmlFor="reservationWindow" className="text-sm font-medium text-gray-700">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                Reservation Window
-              </div>
+        {/* Fallback Phone Number */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Phone className="h-5 w-5 text-gray-700" />
+            <Label className="text-base font-semibold text-gray-900">
+              Contact Information
             </Label>
-            <div className="relative">
-              <Input
-                id="reservationWindow"
-                type="number"
-                placeholder="30"
-                value={formData.reservationWindow}
-                onChange={(e) => handleChange("reservationWindow", e.target.value)}
-                className="h-12 bg-white border-gray-200 rounded-xl focus:border-lime-400 focus:ring-lime-400/20 pr-16"
-                required
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
-                days
-              </span>
-            </div>
-            <p className="text-xs text-gray-500">
-              How far in advance can customers book
-            </p>
           </div>
 
-          {/* Reservation Duration */}
           <div className="space-y-2">
-            <Label htmlFor="reservationDuration" className="text-sm font-medium text-gray-700">
-              <div className="flex items-center gap-2">
-                <Timer className="h-4 w-4" />
-                Reservation Duration
-              </div>
+            <Label htmlFor="fallbackPhone" className="text-sm font-medium text-gray-700">
+              Fallback Phone Number
             </Label>
-            <div className="relative">
-              <Input
-                id="reservationDuration"
-                type="number"
-                placeholder="90"
-                value={formData.reservationDuration}
-                onChange={(e) => handleChange("reservationDuration", e.target.value)}
-                className="h-12 bg-white border-gray-200 rounded-xl focus:border-lime-400 focus:ring-lime-400/20 pr-16"
-                required
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
-                min
-              </span>
-            </div>
+            <Input
+              id="fallbackPhone"
+              type="tel"
+              placeholder="+1 (555) 987-6543"
+              value={formData.fallbackPhone}
+              onChange={(e) => handleChange("fallbackPhone", e.target.value)}
+              className="h-12 bg-white border-gray-200 rounded-xl focus:border-lime-400 focus:ring-lime-400/20"
+              required
+            />
             <p className="text-xs text-gray-500">
-              Default table reservation time
-            </p>
-          </div>
-
-          {/* Max Party Size */}
-          <div className="space-y-2">
-            <Label htmlFor="maxPartySize" className="text-sm font-medium text-gray-700">
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Max Party Size
-              </div>
-            </Label>
-            <div className="relative">
-              <Input
-                id="maxPartySize"
-                type="number"
-                placeholder="12"
-                value={formData.maxPartySize}
-                onChange={(e) => handleChange("maxPartySize", e.target.value)}
-                className="h-12 bg-white border-gray-200 rounded-xl focus:border-lime-400 focus:ring-lime-400/20 pr-20"
-                required
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
-                guests
-              </span>
-            </div>
-            <p className="text-xs text-gray-500">
-              Maximum guests per reservation
-            </p>
-          </div>
-
-          {/* Min Heads-up */}
-          <div className="space-y-2">
-            <Label htmlFor="minHeadsUp" className="text-sm font-medium text-gray-700">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="h-4 w-4" />
-                Minimum Heads-up
-              </div>
-            </Label>
-            <div className="relative">
-              <Input
-                id="minHeadsUp"
-                type="number"
-                placeholder="1"
-                value={formData.minHeadsUp}
-                onChange={(e) => handleChange("minHeadsUp", e.target.value)}
-                className="h-12 bg-white border-gray-200 rounded-xl focus:border-lime-400 focus:ring-lime-400/20 pr-20"
-                required
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
-                hour(s)
-              </span>
-            </div>
-            <p className="text-xs text-gray-500">
-              Minimum notice before booking
+              For forwarding calls when AI limit is reached
             </p>
           </div>
         </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-600">
+            {error}
+          </div>
+        )}
 
         {/* Buttons */}
         <div className="flex gap-3 pt-4">
           <Button
             type="button"
             onClick={onBack}
+            disabled={isLoading}
             variant="outline"
             className="flex-1 h-12 border-gray-300 rounded-xl text-base font-medium hover:bg-gray-50"
           >
@@ -264,9 +191,10 @@ export default function Step2BusinessDetails({
           </Button>
           <Button
             type="submit"
-            className="flex-1 h-12 bg-black hover:bg-gray-900 text-white rounded-xl text-base font-medium shadow-lg shadow-lime-400/10 hover:shadow-lime-400/20 transition-all"
+            disabled={isLoading}
+            className="flex-1 h-12 bg-black hover:bg-gray-900 text-white rounded-xl text-base font-medium shadow-lg shadow-lime-400/10 hover:shadow-lime-400/20 transition-all disabled:opacity-50"
           >
-            Complete Setup
+            {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Continue"}
           </Button>
         </div>
       </form>
