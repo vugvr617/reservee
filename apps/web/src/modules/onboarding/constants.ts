@@ -1,6 +1,6 @@
 import { TimeSlot } from "./types";
 
-export const TOTAL_STEPS = 2;
+export const TOTAL_STEPS = 3;
 
 export const DEFAULT_SCHEDULE: TimeSlot[] = [
   { day: "Monday", open: "09:00", close: "22:00", closed: false },

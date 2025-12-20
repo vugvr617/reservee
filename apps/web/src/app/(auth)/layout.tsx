@@ -7,7 +7,7 @@ export default function AuthLayout({
     <div className="min-h-screen flex">
       {/* Left side - Form */}
       <div className="flex-1 flex items-center justify-center p-8 bg-gradient-to-br from-white to-lime-50/30">
-        <div className="w-full max-w-md">{children}</div>
+        <div className="w-full max-w-lg">{children}</div>
       </div>
 
       {/* Right side - Branding */}

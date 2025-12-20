@@ -3,7 +3,9 @@ export interface Step1FormData {
   managerEmail: string;
   managerPhone: string;
   venueName: string;
-  fallbackPhone: string;
+  address: string;
+  city: string;
+  country: string;
 }
 
 export interface TimeSlot {
@@ -14,14 +16,22 @@ export interface TimeSlot {
 }
 
 export interface Step2FormData {
-  reservationWindow: string;
-  reservationDuration: string;
-  maxPartySize: string;
-  minHeadsUp: string;
+  fallbackPhone: string;
   schedule: TimeSlot[];
 }
 
-export interface OnboardingData {
-  step1: Step1FormData;
-  step2: Step2FormData;
+export interface VenueData {
+  id: string;
+  userId: string;
+  managerName: string | null;
+  managerEmail: string | null;
+  managerPhone: string | null;
+  venueName: string | null;
+  fallbackPhone: string | null;
+  address: string | null;
+  city: string | null;
+  country: string | null;
+  schedule: TimeSlot[] | null;
+  onboardingStatus: "in-progress" | "completed";
+  onboardingStep: number;
 }
