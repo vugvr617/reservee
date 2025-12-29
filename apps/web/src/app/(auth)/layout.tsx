@@ -6,12 +6,12 @@ export default function AuthLayout({
   return (
     <div className="min-h-screen flex">
       {/* Left side - Form */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-gradient-to-br from-white to-lime-50/30">
+      <div className="flex-1 lg:flex-[0.55] flex items-center justify-center p-8 bg-gradient-to-br from-white to-lime-50/30">
         <div className="w-full max-w-lg">{children}</div>
       </div>
 
       {/* Right side - Branding */}
-      <div className="hidden lg:flex flex-1 bg-[#0a0a0a] text-white relative">
+      <div className="hidden lg:flex lg:flex-[0.45] bg-[#0a0a0a] text-white relative">
         <div className="sticky top-0 h-screen w-full p-12 flex flex-col justify-between overflow-hidden">
         {/* Background decorative elements */}
         <div className="absolute inset-0 overflow-hidden">
