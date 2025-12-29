@@ -3,7 +3,8 @@
 import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { Step1FormData, Step2FormData, VenueData } from "./types";
+import { Step1FormData, Step2FormData, Step3FormData, VenueData } from "./types";
+import { vapi, getVoiceConfig, generateGreeting, VoiceOption } from "@/lib/vapi";
 
 async function getSession() {
   const session = await auth.api.getSession({
@@ -75,6 +76,545 @@ export async function saveStep2(formData: Step2FormData): Promise<{ success: boo
       fallbackPhone: formData.fallbackPhone,
       schedule: formData.schedule,
       onboardingStep: 3,
+      updatedAt: new Date().toISOString(),
+    })
+    .eq("userId", session.user.id);
+
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+interface ElevenLabsVoiceDetail {
+  voice_id: string;
+  name: string;
+  labels?: {
+    gender?: string;
+    accent?: string;
+    age?: string;
+    description?: string;
+    use_case?: string;
+  };
+  description?: string;
+  category?: string;
+  preview_url?: string;
+  verified_languages?: Array<{
+    language: string;
+    model_id: string;
+    accent?: string;
+    locale: string;
+    preview_url: string;
+  }>;
+}
+
+// Curated voice IDs for AI receptionist
+const CURATED_VOICE_IDS = [
+  "kPzsL2i3teMYv0FxEYQ6",
+  "15CVCzDByBinCIoCblXo",
+  "q0IMILNRPxOgtBTS4taI",
+  "xjlfQQ3ynqiEyRpArrT8",
+  "M336tBVZHWWiWb4R54ui",
+  "uQPOhlzA94sogqmhGLCI",
+];
+
+export async function fetchElevenLabsVoices(): Promise<VoiceOption[]> {
+  try {
+    const voicePromises = CURATED_VOICE_IDS.map(async (voiceId) => {
+      const response = await fetch(
+        `https://api.elevenlabs.io/v1/voices/${voiceId}`,
+        {
+          headers: {
+            "xi-api-key": process.env.ELEVENLABS_API_KEY || "",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        console.error(`Failed to fetch voice ${voiceId}`);
+        return null;
+      }
+
+      return response.json() as Promise<ElevenLabsVoiceDetail>;
+    });
+
+    const voiceResults = await Promise.all(voicePromises);
+    const voices = voiceResults.filter((v): v is ElevenLabsVoiceDetail => v !== null);
+
+    return voices.map((voice) => ({
+      voiceId: voice.voice_id,
+      name: voice.name,
+      gender: voice.labels?.gender || "neutral",
+      description: voice.description || voice.labels?.description || "Professional voice",
+      category: voice.category || "conversational",
+      previewUrl: voice.preview_url || "",
+      accent: voice.labels?.accent,
+      age: voice.labels?.age,
+      verifiedLanguages: voice.verified_languages || [],
+    }));
+  } catch (error) {
+    console.error("Error fetching ElevenLabs voices:", error);
+    // Return fallback voices if API fails
+    return [
+      {
+        voiceId: "xjlfQQ3ynqiEyRpArrT8",
+        name: "Vera",
+        gender: "female",
+        description: "Professional and articulate voice",
+        category: "professional",
+        previewUrl: "",
+        verifiedLanguages: [],
+      },
+      {
+        voiceId: "q0IMILNRPxOgtBTS4taI",
+        name: "Drew",
+        gender: "male",
+        description: "Warm and friendly voice",
+        category: "conversational",
+        previewUrl: "",
+        verifiedLanguages: [],
+      },
+    ];
+  }
+}
+
+export async function saveStep3(formData: Step3FormData): Promise<{ success: boolean; error?: string }> {
+  const session = await getSession();
+  if (!session?.user?.id) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  try {
+    // Get venue data
+    const venue = await getVenue();
+    if (!venue) {
+      return { success: false, error: "Venue not found" };
+    }
+
+    // Generate greeting message (for later use in Step 4)
+    const greeting = formData.customGreeting || generateGreeting(venue.venueName || "your venue");
+
+    // Build AI config object
+    const aiConfig = {
+      ai_voice_provider: 'elevenlabs' as const,
+      ai_voice_id: formData.voiceId,
+      ai_custom_greeting: greeting,
+    };
+
+    // ONLY save AI config - NO assistant creation yet!
+    const { error } = await supabase
+      .from("venue")
+      .update({
+        ai_config: aiConfig,
+        ai_status: 'draft', // Draft: config saved but assistant not created yet
+        onboardingStep: 4,
+        updatedAt: new Date().toISOString(),
+      })
+      .eq("userId", session.user.id);
+
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (error) {
+    console.error("AI config save error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to save AI configuration",
+    };
+  }
+}
+
+// Helper function to convert country name to ISO code
+function getCountryCode(countryName: string | null): string {
+  if (!countryName) return "DE"; // Default to Germany
+
+  const countryMap: Record<string, string> = {
+    "Hungary": "HU",
+    "Germany": "DE",
+    "United States": "US",
+    "United Kingdom": "GB",
+    "France": "FR",
+    "Spain": "ES",
+    "Italy": "IT",
+    "Netherlands": "NL",
+    "Poland": "PL",
+    "Austria": "AT",
+    "Belgium": "BE",
+    "Czech Republic": "CZ",
+    "Denmark": "DK",
+    "Finland": "FI",
+    "Greece": "GR",
+    "Ireland": "IE",
+    "Portugal": "PT",
+    "Sweden": "SE",
+    "Switzerland": "CH",
+    "Norway": "NO",
+  };
+
+  // If already an ISO code (2 letters), return as is
+  if (countryName.length === 2) {
+    return countryName.toUpperCase();
+  }
+
+  // Otherwise, look up the country name
+  return countryMap[countryName] || "DE";
+}
+
+// Helper function to format phone numbers
+function formatPhoneNumber(number: string): string {
+  // Remove all non-digit characters
+  const cleaned = number.replace(/\D/g, "");
+
+  // International format
+  if (cleaned.length > 10) {
+    const countryCode = cleaned.substring(0, cleaned.length - 10);
+    const areaCode = cleaned.substring(cleaned.length - 10, cleaned.length - 7);
+    const firstPart = cleaned.substring(cleaned.length - 7, cleaned.length - 4);
+    const secondPart = cleaned.substring(cleaned.length - 4);
+    return `+${countryCode} (${areaCode}) ${firstPart}-${secondPart}`;
+  }
+
+  // US format
+  if (cleaned.length === 10) {
+    return `(${cleaned.substring(0, 3)}) ${cleaned.substring(3, 6)}-${cleaned.substring(6)}`;
+  }
+
+  return number;
+}
+
+export async function fetchAvailableNumbers(
+  countryInput: string = "DE"
+): Promise<{ success: boolean; numbers?: import("./types").PhoneNumber[]; error?: string }> {
+  try {
+    // Convert country name to ISO code if needed
+    const countryCode = getCountryCode(countryInput);
+
+    // Initialize Twilio client
+    const twilio = require("twilio")(
+      process.env.TWILIO_ACCOUNT_SID,
+      process.env.TWILIO_AUTH_TOKEN
+    );
+
+    console.log("🔍 Fetching pricing for country:", countryCode, "(from input:", countryInput, ")");
+
+    // Step 1: Fetch pricing info for the country
+    const pricingClient = twilio.pricing.v1.phoneNumbers;
+    const countryPricing = await pricingClient.countries(countryCode).fetch();
+
+    console.log("💰 Country pricing data:", JSON.stringify(countryPricing, null, 2));
+
+    // Declare monthlyPrice outside the if/else block
+    let monthlyPrice = 1.15; // Default price
+
+    // Check if phoneNumberPrices exists
+    if (!countryPricing.phoneNumberPrices || countryPricing.phoneNumberPrices.length === 0) {
+      console.log("⚠️ No pricing data available for country:", countryCode);
+      console.log("💵 Using default monthly price:", monthlyPrice);
+    } else {
+      // Find local number pricing
+      const localPricing = countryPricing.phoneNumberPrices.find(
+        (price: any) => price.number_type === "local"
+      );
+
+      console.log("📊 Local pricing found:", localPricing);
+
+      monthlyPrice = localPricing ? parseFloat(localPricing.current_price) : 1.15;
+
+      console.log("💵 Monthly price:", monthlyPrice);
+
+      // Skip if monthly price exceeds $2
+      if (monthlyPrice > 2.0) {
+        return {
+          success: false,
+          error: `Local numbers in ${countryCode} cost $${monthlyPrice.toFixed(2)}/month (max $2.00)`,
+        };
+      }
+    }
+
+    console.log("📞 Fetching available numbers...");
+
+    // Step 2: Search for available phone numbers in the specified country
+    let availableNumbers;
+    try {
+      availableNumbers = await twilio
+        .availablePhoneNumbers(countryCode)
+        .local.list({
+          voiceEnabled: true,
+          limit: 10, // Get 10 numbers within budget
+          excludeAllAddressRequired: true, // Only show numbers that don't require address validation
+        });
+
+      console.log(`✅ Found ${availableNumbers.length} available numbers for ${countryCode}`);
+    } catch (searchError: any) {
+      console.error("❌ Error searching for numbers:", searchError);
+
+      // If the country doesn't support local numbers, return error
+      if (searchError.status === 404 || searchError.code === 20404) {
+        return {
+          success: false,
+          error: `Phone numbers are not available for ${countryInput}. Please select a different country.`,
+        };
+      } else {
+        throw searchError;
+      }
+    }
+
+    if (!availableNumbers || availableNumbers.length === 0) {
+      return {
+        success: false,
+        error: `No phone numbers available for country: ${countryCode}. Please try a different country or contact support.`,
+      };
+    }
+
+    // Step 3: Map numbers with pricing info
+    const numbers: import("./types").PhoneNumber[] = availableNumbers.map((num: any) => ({
+      number: num.phoneNumber,
+      formattedNumber: num.friendlyName || formatPhoneNumber(num.phoneNumber),
+      friendlyName: num.friendlyName,
+      locality: num.locality,
+      region: num.region,
+      isoCountry: num.isoCountry,
+      monthlyPrice: monthlyPrice,
+      capabilities: num.capabilities,
+    }));
+
+    console.log("📋 Mapped numbers with pricing:", numbers[0]);
+
+    return { success: true, numbers };
+  } catch (error) {
+    console.error("❌ Error fetching Twilio numbers:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to fetch phone numbers from Twilio",
+    };
+  }
+}
+
+// Helper function to extract country code from phone number
+function extractCountryCode(phoneNumber: string): string {
+  const cleaned = phoneNumber.replace(/[^\d]/g, '');
+
+  if (cleaned.startsWith('1')) return 'US';
+  if (cleaned.startsWith('49')) return 'DE';
+  if (cleaned.startsWith('44')) return 'GB';
+  if (cleaned.startsWith('33')) return 'FR';
+  if (cleaned.startsWith('34')) return 'ES';
+  if (cleaned.startsWith('39')) return 'IT';
+  if (cleaned.startsWith('31')) return 'NL';
+  if (cleaned.startsWith('48')) return 'PL';
+  if (cleaned.startsWith('43')) return 'AT';
+  if (cleaned.startsWith('32')) return 'BE';
+  if (cleaned.startsWith('36')) return 'HU';
+
+  return 'DE'; // Default
+}
+
+export async function purchasePhoneNumber(
+  phoneNumber: string,
+  fallbackPhone: string
+): Promise<{ success: boolean; error?: string }> {
+  const session = await getSession();
+  if (!session?.user?.id) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  try {
+    const venue = await getVenue();
+    if (!venue) {
+      return { success: false, error: "Venue not found" };
+    }
+
+    // Validate we have AI configuration
+    // Note: Supabase returns snake_case column names, so we need to check the raw data
+    const venueData = venue as any;
+    const aiConfig = venueData.ai_config || venue.aiConfig;
+
+    if (!aiConfig?.ai_voice_id || !aiConfig?.ai_custom_greeting) {
+      console.error("AI config missing:", { aiConfig, venue });
+      return { success: false, error: "AI configuration not set" };
+    }
+
+    // STEP 1: Purchase number from Twilio (COMMENTED OUT - using already purchased number)
+    // const twilio = require("twilio")(
+    //   process.env.TWILIO_ACCOUNT_SID,
+    //   process.env.TWILIO_AUTH_TOKEN
+    // );
+
+    // const purchasedNumber = await twilio.incomingPhoneNumbers.create({
+    //   phoneNumber: phoneNumber,
+    //   voiceUrl: "", // Will be set by Vapi
+    //   voiceMethod: "POST",
+    //   addressRequirements: "none", // Skip address validation
+    // });
+
+    // console.log("✅ Purchased Twilio number:", purchasedNumber.sid);
+
+    // TEMPORARY: Using already purchased number
+    const hardcodedPhoneNumber = "+13613091761"; // (361) 309-1761
+    const purchasedNumber = { sid: "TEMP_SID_" + Date.now() }; // Temporary SID
+
+    console.log("✅ Using hardcoded Twilio number:", hardcodedPhoneNumber);
+
+    // Extract country code from phone number
+    const phoneCountry = extractCountryCode(hardcodedPhoneNumber);
+
+    // STEP 2: Create Vapi Assistant with COMPLETE info
+    const scheduleDescription = venue.schedule
+      ?.filter((slot) => !slot.closed)
+      .map((slot) => `${slot.day}: ${slot.open} - ${slot.close}`)
+      .join(", ") || "Contact us for hours";
+
+    const assistant = await vapi.assistants.create({
+      name: `${venue.venueName} AI Receptionist`,
+      voice: getVoiceConfig(aiConfig.ai_voice_id),
+      transcriber: {
+        provider: "deepgram",
+        model: "nova-2",
+        language: "en-US",
+      },
+      model: {
+        provider: "openai",
+        model: "gpt-4",
+        messages: [
+          {
+            role: "system",
+            content: `You are a professional AI receptionist for ${venue.venueName}, a restaurant/venue.
+
+Location: ${venue.address}, ${venue.city}, ${venue.country}
+Opening Hours: ${scheduleDescription}
+Manager: ${venue.managerName} (${venue.managerEmail})
+Phone Number: ${hardcodedPhoneNumber}
+Fallback Phone: ${fallbackPhone}
+
+Your responsibilities:
+1. Greet callers warmly and professionally
+2. Answer questions about hours, location, and general information
+3. Help customers make reservations
+4. If you cannot handle a request or customer asks for a person, politely offer to transfer to ${fallbackPhone}
+
+Keep responses concise and helpful. Maintain a professional and friendly tone in all interactions.`,
+          },
+        ],
+      },
+      firstMessage: aiConfig.ai_custom_greeting || undefined,
+    });
+
+    console.log("✅ Created Vapi assistant:", assistant.id);
+
+    // STEP 3: Import number to Vapi
+    console.log("📞 Importing to Vapi with phone number:", hardcodedPhoneNumber);
+
+    const vapiResponse = await fetch("https://api.vapi.ai/phone-number/import/twilio", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.VAPI_PRIVATE_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        twilioPhoneNumber: hardcodedPhoneNumber, // Must use twilioPhoneNumber, not phoneNumber
+        twilioAccountSid: process.env.TWILIO_ACCOUNT_SID!,
+        twilioAuthToken: process.env.TWILIO_AUTH_TOKEN!,
+        assistantId: assistant.id,
+      }),
+    });
+
+    if (!vapiResponse.ok) {
+      const errorText = await vapiResponse.text();
+      throw new Error(`Vapi import failed: ${errorText}`);
+    }
+
+    const vapiImport = await vapiResponse.json();
+    console.log("✅ Imported to Vapi:", vapiImport.id);
+
+    // STEP 4: Save to phone_numbers table
+    const { error: phoneError } = await supabase
+      .from("phone_numbers")
+      .insert({
+        venue_id: venue.id,
+        phone_number: hardcodedPhoneNumber,
+        phone_country: phoneCountry,
+        fallback_phone_number: fallbackPhone || null,
+        phone_provider: 'twilio',
+        phone_provider_sid: purchasedNumber.sid,
+        monthly_cost: null, // Can be extracted from Twilio pricing if needed
+        vapi_phone_id: vapiImport.id,
+        vapi_assistant_id: assistant.id,
+        phone_status: 'active',
+        is_primary: true, // First phone is primary
+        purchased_at: new Date().toISOString(),
+      });
+
+    if (phoneError) {
+      console.error("Failed to save phone number:", phoneError);
+      return { success: false, error: phoneError.message };
+    }
+
+    // STEP 5: Update venue with vapi_agent_id, ai_status, and move to Step 5
+    const { error: venueError } = await supabase
+      .from("venue")
+      .update({
+        vapi_agent_id: assistant.id,
+        ai_status: 'ready', // Ready: assistant created and linked successfully
+        onboardingStep: 5, // Move to Step 5 (Test Call)
+        updatedAt: new Date().toISOString(),
+      })
+      .eq("userId", session.user.id);
+
+    if (venueError) {
+      console.error("Failed to update venue:", venueError);
+      return { success: false, error: venueError.message };
+    }
+
+    console.log("✅ Saved to database");
+
+    return { success: true };
+  } catch (error) {
+    console.error("Phone number purchase error:", error);
+
+    // Mark AI status as failed if assistant creation failed
+    const session = await getSession();
+    if (session?.user?.id) {
+      await supabase
+        .from("venue")
+        .update({
+          ai_status: 'failed', // Failed: assistant creation encountered an error
+          updatedAt: new Date().toISOString(),
+        })
+        .eq("userId", session.user.id);
+    }
+
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to purchase phone number",
+    };
+  }
+}
+
+export async function getPrimaryPhoneNumber(): Promise<string | null> {
+  const session = await getSession();
+  if (!session?.user?.id) return null;
+
+  const venue = await getVenue();
+  if (!venue) return null;
+
+  const { data, error } = await supabase
+    .from("phone_numbers")
+    .select("phone_number")
+    .eq("venue_id", venue.id)
+    .eq("is_primary", true)
+    .single();
+
+  if (error || !data) return null;
+  return data.phone_number;
+}
+
+export async function completeOnboarding(): Promise<{ success: boolean; error?: string }> {
+  const session = await getSession();
+  if (!session?.user?.id) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  const { error } = await supabase
+    .from("venue")
+    .update({
+      onboardingStatus: "completed",
       updatedAt: new Date().toISOString(),
     })
     .eq("userId", session.user.id);

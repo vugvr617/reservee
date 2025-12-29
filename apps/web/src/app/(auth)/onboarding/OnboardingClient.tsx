@@ -3,11 +3,17 @@
 import { useState } from "react";
 import Step1OwnerInfo from "@/modules/onboarding/components/Step1OwnerInfo";
 import Step2BusinessDetails from "@/modules/onboarding/components/Step2BusinessDetails";
+import Step3AIReceptionist from "@/modules/onboarding/components/Step3AIReceptionist";
+import Step4PhoneNumber from "@/modules/onboarding/components/Step4PhoneNumber";
+import Step5TestCall from "@/modules/onboarding/components/Step5TestCall";
 import OnboardingProgress from "@/modules/onboarding/components/OnboardingProgress";
 import AuthLogo from "@/modules/auth/components/AuthLogo";
 import { motion, AnimatePresence } from "framer-motion";
 import { TOTAL_STEPS } from "@/modules/onboarding/constants";
 import { VenueData } from "@/modules/onboarding/types";
+import { signOut } from "@/lib/auth-client";
+import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
 
 interface OnboardingClientProps {
   initialData: VenueData | null;
@@ -15,6 +21,7 @@ interface OnboardingClientProps {
 
 export default function OnboardingClient({ initialData }: OnboardingClientProps) {
   const [currentStep, setCurrentStep] = useState(initialData?.onboardingStep || 1);
+  const [purchasedPhoneNumber, setPurchasedPhoneNumber] = useState<string | null>(null);
 
   const handleNext = () => {
     if (currentStep < TOTAL_STEPS) {
@@ -26,6 +33,20 @@ export default function OnboardingClient({ initialData }: OnboardingClientProps)
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     }
+  };
+
+  const handlePhoneNumberPurchased = (phoneNumber: string) => {
+    setPurchasedPhoneNumber(phoneNumber);
+    handleNext();
+  };
+
+  const handleComplete = () => {
+    window.location.href = "/dashboard";
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    window.location.href = "/sign-in";
   };
 
   const slideVariants = {
@@ -46,11 +67,22 @@ export default function OnboardingClient({ initialData }: OnboardingClientProps)
   return (
     <div className="space-y-8">
       <div className="px-4 space-y-8">
-      <AuthLogo />
+        <div className="flex items-center justify-between">
+          <AuthLogo />
+          <Button
+            onClick={handleSignOut}
+            variant="outline"
+            size="sm"
+            className="text-gray-600 hover:text-gray-900 border-gray-200"
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign Out
+          </Button>
+        </div>
 
-      <OnboardingProgress currentStep={currentStep} totalSteps={TOTAL_STEPS} />
+        <OnboardingProgress currentStep={currentStep} totalSteps={TOTAL_STEPS} />
       </div>
-      <div className="relative px-4 overflow-hidden">
+      <div className="relative px-4">
         <AnimatePresence mode="wait" custom={currentStep}>
           <motion.div
             key={currentStep}
@@ -71,10 +103,17 @@ export default function OnboardingClient({ initialData }: OnboardingClientProps)
               <Step2BusinessDetails onNext={handleNext} onBack={handleBack} initialData={initialData} />
             )}
             {currentStep === 3 && (
-              <div className="text-center py-12">
-                <h2 className="text-2xl font-semibold text-gray-900">Step 3</h2>
-                <p className="text-gray-500 mt-2">Coming soon...</p>
-              </div>
+              <Step3AIReceptionist onNext={handleNext} onBack={handleBack} initialData={initialData} />
+            )}
+            {currentStep === 4 && (
+              <Step4PhoneNumber onBack={handleBack} onPhoneNumberPurchased={handlePhoneNumberPurchased} initialData={initialData} />
+            )}
+            {currentStep === 5 && (
+              <Step5TestCall
+                onBack={handleBack}
+                onComplete={handleComplete}
+                phoneNumber={purchasedPhoneNumber || ""}
+              />
             )}
           </motion.div>
         </AnimatePresence>
