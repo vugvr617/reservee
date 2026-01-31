@@ -5,7 +5,11 @@ import { Plus, Calendar, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-export function GuestListPanel() {
+interface GuestListPanelProps {
+  isCollapsed: boolean;
+}
+
+export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
   const [showNewReservation, setShowNewReservation] = useState(false);
 
   // Mock data for guest list
@@ -33,8 +37,9 @@ export function GuestListPanel() {
   ];
 
   return (
-    <div className="absolute right-0 top-0 bottom-0 w-80 bg-white border-l border-gray-200 shadow-lg overflow-y-auto z-10">
-      <div className="p-4">
+    <div className={`${isCollapsed ? 'w-0' : 'w-72'} shrink-0 bg-white border-l border-gray-200 shadow-lg overflow-y-auto overflow-x-hidden transition-all duration-300`}>
+      {!isCollapsed && (
+        <div className="p-4">
         {/* Search */}
         <div className="mb-4">
           <input
@@ -91,26 +96,26 @@ export function GuestListPanel() {
           </h3>
 
           <div className="space-y-3">
-            {/* Guest Name & Total Guest */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-gray-600 mb-1 block">
-                  Guest Name
-                </label>
-                <Input
-                  placeholder="e.g., John Smith"
-                  className="h-9 text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-gray-600 mb-1 block">
-                  Total Guest
-                </label>
-                <Input
-                  placeholder="e.g., 2 guests"
-                  className="h-9 text-sm"
-                />
-              </div>
+            {/* Guest Name */}
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block">
+                Guest Name
+              </label>
+              <Input
+                placeholder="e.g., John Smith"
+                className="h-9 text-sm"
+              />
+            </div>
+
+            {/* Total Guest */}
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block">
+                Total Guests
+              </label>
+              <Input
+                placeholder="e.g., 2"
+                className="h-9 text-sm"
+              />
             </div>
 
             {/* Contact */}
@@ -122,29 +127,29 @@ export function GuestListPanel() {
               />
             </div>
 
-            {/* Date & Time */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-gray-600 mb-1 block">Date</label>
-                <div className="relative">
-                  <Input
-                    type="text"
-                    placeholder="Select Date"
-                    className="h-9 text-sm pr-8"
-                  />
-                  <Calendar className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                </div>
+            {/* Date */}
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block">Date</label>
+              <div className="relative">
+                <Input
+                  type="text"
+                  placeholder="Select Date"
+                  className="h-9 text-sm pr-8"
+                />
+                <Calendar className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               </div>
-              <div>
-                <label className="text-xs text-gray-600 mb-1 block">Time</label>
-                <div className="relative">
-                  <Input
-                    type="text"
-                    placeholder="Select Time"
-                    className="h-9 text-sm pr-8"
-                  />
-                  <Clock className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                </div>
+            </div>
+
+            {/* Time */}
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block">Time</label>
+              <div className="relative">
+                <Input
+                  type="text"
+                  placeholder="Select Time"
+                  className="h-9 text-sm pr-8"
+                />
+                <Clock className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               </div>
             </div>
 
@@ -165,7 +170,8 @@ export function GuestListPanel() {
             </Button>
           </div>
         </div>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

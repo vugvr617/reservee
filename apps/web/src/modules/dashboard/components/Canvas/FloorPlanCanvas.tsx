@@ -1,18 +1,16 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
-import { Stage, Layer, Transformer, Line, Rect } from "react-konva";
+import { Stage, Layer, Transformer, Rect } from "react-konva";
 import type Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { GridLayer } from "./GridLayer";
 import { TableShape } from "./TableShape";
-import { WallShape } from "./WallShape";
 import { BorderShape } from "./BorderShape";
 import { ZoomControls } from "./ZoomControls";
 import { KeyboardShortcutsHelp } from "./KeyboardShortcutsHelp";
 import { ZOOM_STEP, MIN_ZOOM, MAX_ZOOM } from "@/modules/dashboard/constants";
-import type { Wall, Border, CanvasTable } from "@/modules/dashboard/types";
 import { deleteTable as deleteTableAction } from "@/modules/dashboard/actions";
 
 interface FloorPlanCanvasProps {
@@ -23,7 +21,7 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
-  const hasAutoFittedRef = useRef<Set<string>>(new Set());
+  const hasAutoFittedRef = useRef<Map<string, { width: number; height: number; readOnly: boolean }>>(new Map());
 
   const [stageSize, setStageSize] = useState({ width: 1200, height: 800 });
   const [isSpacePressed, setIsSpacePressed] = useState(false);
@@ -35,16 +33,6 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
     selectedTableId,
     selectTable,
     deleteTable: deleteTableFromStore,
-    walls,
-    selectedWallId,
-    selectWall,
-    deleteWall,
-    currentWallType,
-    isDrawingWall,
-    setIsDrawingWall,
-    tempWallStart,
-    setTempWallStart,
-    addWall,
     borders,
     selectedBorderId,
     selectBorder,
@@ -60,6 +48,7 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
     currentTool,
     setCurrentTool,
     currentFloorId,
+    floors,
     undo,
     redo,
     historyIndex,
@@ -70,14 +59,13 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
-      // Don't handle shortcuts if typing in an input
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         return;
       }
 
-      // Space for pan mode
-      if (e.code === 'Space' && !e.repeat) {
+      // Space for pan mode (only in edit mode)
+      if (e.code === 'Space' && !e.repeat && !readOnly) {
         e.preventDefault();
         setIsSpacePressed(true);
         return;
@@ -90,60 +78,40 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
         return;
       }
 
-      // ESC to cancel or close help
+      // ESC to cancel
       if (e.code === 'Escape') {
         e.preventDefault();
-        
         if (showShortcutsHelp) {
           setShowShortcutsHelp(false);
           return;
         }
-        
-        // Cancel wall drawing if in progress
-        if (isDrawingWall) {
-          setIsDrawingWall(false);
-          setTempWallStart(null);
-          setMousePos(null);
-          return;
-        }
-        
-        // Cancel border drawing if in progress
         if (isDrawingBorder) {
           setIsDrawingBorder(false);
           setTempBorderStart(null);
           setMousePos(null);
           return;
         }
-        
-        // Clear any selections
         if (selectedTableId) selectTable(null);
-        if (selectedWallId) selectWall(null);
         if (selectedBorderId) selectBorder(null);
         return;
       }
 
-      // Only process edit shortcuts if not in read-only mode
+      // Edit shortcuts
       if (!readOnly) {
-        // Delete/Backspace to delete selected element
+        // Delete selected element
         if (e.code === 'Delete' || e.code === 'Backspace') {
           e.preventDefault();
-          
           if (selectedTableId) {
             const table = tables.find(t => t.id === selectedTableId);
             if (table) {
-              // Push to history before deleting
               pushHistory({
                 type: 'table_delete',
                 elementId: selectedTableId,
                 before: table,
                 after: null,
               });
-              
-              // Delete from store
               deleteTableFromStore(selectedTableId);
               selectTable(null);
-              
-              // Delete from database
               try {
                 await deleteTableAction(selectedTableId);
               } catch (error) {
@@ -151,80 +119,46 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
               }
             }
           }
-          
-          if (selectedWallId) {
-            deleteWall(selectedWallId);
-            selectWall(null);
-          }
           return;
         }
 
-        // Tool shortcuts (only when not drawing)
-        if (!isDrawingWall && !isDrawingBorder) {
-          if (e.code === 'KeyV') {
-            e.preventDefault();
-            setCurrentTool('select');
-            return;
-          }
-          if (e.code === 'KeyH') {
-            e.preventDefault();
-            setCurrentTool('pan');
-            return;
-          }
-          if (e.code === 'KeyB') {
-            e.preventDefault();
-            setCurrentTool('border');
-            return;
-          }
-          if (e.code === 'KeyW') {
-            e.preventDefault();
-            setCurrentTool('wall');
-            return;
-          }
-          if (e.code === 'KeyT') {
-            e.preventDefault();
-            setCurrentTool('table');
-            return;
-          }
-        }
+        // Tool shortcuts
+        if (e.code === 'KeyV') { setCurrentTool('select'); return; }
+        if (e.code === 'KeyH') { setCurrentTool('pan'); return; }
+        if (e.code === 'KeyB') { setCurrentTool('border'); return; }
+        if (e.code === 'KeyT') { setCurrentTool('table'); return; }
 
-        // Undo: Cmd/Ctrl + Z
+        // Undo/Redo
         if ((e.metaKey || e.ctrlKey) && e.code === 'KeyZ' && !e.shiftKey) {
           e.preventDefault();
-          if (historyIndex >= 0) {
-            undo();
-          }
+          if (historyIndex >= 0) undo();
           return;
         }
-
-        // Redo: Cmd/Ctrl + Shift + Z
         if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'KeyZ') {
           e.preventDefault();
-          if (historyIndex < history.length - 1) {
-            redo();
-          }
+          if (historyIndex < history.length - 1) redo();
           return;
         }
       }
 
-      // Zoom shortcuts (work in both modes)
-      if (e.code === 'Equal' || e.code === 'NumpadAdd') {
-        e.preventDefault();
-        const newScale = Math.min(stageScale + ZOOM_STEP, MAX_ZOOM);
-        setStageScale(newScale);
-        return;
-      }
-      if (e.code === 'Minus' || e.code === 'NumpadSubtract') {
-        e.preventDefault();
-        const newScale = Math.max(stageScale - ZOOM_STEP, MIN_ZOOM);
-        setStageScale(newScale);
-        return;
-      }
-      if (e.code === 'Digit0') {
-        e.preventDefault();
-        setStageScale(1);
-        setStagePosition({ x: 0, y: 0 });
-        return;
+      // Zoom (only in edit mode)
+      if (!readOnly) {
+        if (e.code === 'Equal' || e.code === 'NumpadAdd') {
+          e.preventDefault();
+          setStageScale(Math.min(stageScale + ZOOM_STEP, MAX_ZOOM));
+          return;
+        }
+        if (e.code === 'Minus' || e.code === 'NumpadSubtract') {
+          e.preventDefault();
+          setStageScale(Math.max(stageScale - ZOOM_STEP, MIN_ZOOM));
+          return;
+        }
+        if (e.code === 'Digit0') {
+          e.preventDefault();
+          setStageScale(1);
+          setStagePosition({ x: 0, y: 0 });
+          return;
+        }
       }
     };
 
@@ -237,298 +171,181 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
-
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, [
-    readOnly,
-    isDrawingWall,
-    isDrawingBorder,
-    selectedTableId,
-    selectedWallId,
-    selectedBorderId,
-    showShortcutsHelp,
-    tables,
-    historyIndex,
-    history,
-    stageScale,
-    setIsDrawingWall,
-    setTempWallStart,
-    setIsDrawingBorder,
-    setTempBorderStart,
-    selectTable,
-    selectWall,
-    selectBorder,
-    setCurrentTool,
-    deleteTableFromStore,
-    deleteWall,
-    pushHistory,
-    undo,
-    redo,
-    setStageScale,
-    setStagePosition,
+    readOnly, isDrawingBorder, selectedTableId, selectedBorderId,
+    showShortcutsHelp, tables, historyIndex, history, stageScale,
+    setIsDrawingBorder, setTempBorderStart, selectTable, selectBorder,
+    setCurrentTool, deleteTableFromStore, pushHistory, undo, redo,
+    setStageScale, setStagePosition,
   ]);
 
-  // Calculate canvas size dynamically based on table positions
-  const getCanvasBounds = () => {
-    if (tables.length === 0) {
-      return { width: 2000, height: 1500 }; // Default size when no tables
-    }
-
-    // Filter tables for current floor
-    const currentFloorTables = tables.filter(t => t.floor_id === currentFloorId);
-
-    if (currentFloorTables.length === 0) {
-      return { width: 2000, height: 1500 };
-    }
-
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-
-    currentFloorTables.forEach(table => {
-      const right = table.position_x + table.width;
-      const bottom = table.position_y + table.height;
-
-      minX = Math.min(minX, table.position_x);
-      minY = Math.min(minY, table.position_y);
-      maxX = Math.max(maxX, right);
-      maxY = Math.max(maxY, bottom);
-    });
-
-    // Add padding around tables
-    const padding = 300;
-    return {
-      width: Math.max(2000, maxX + padding),
-      height: Math.max(1500, maxY + padding)
-    };
-  };
-
-  const canvasBounds = getCanvasBounds();
-
-  // Handle responsive canvas sizing
+  // Resize handler
   useEffect(() => {
     const updateSize = () => {
       if (containerRef.current) {
-        const { width, height } = containerRef.current.getBoundingClientRect();
-        setStageSize({ width, height });
+        setStageSize({
+          width: containerRef.current.offsetWidth,
+          height: containerRef.current.offsetHeight,
+        });
       }
     };
-
     updateSize();
-    window.addEventListener("resize", updateSize);
-    return () => window.removeEventListener("resize", updateSize);
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
   }, []);
 
-  // Auto-fit border when it first loads or when switching floors
+  // Auto-fit to content on floor change or when container/mode changes significantly
   useEffect(() => {
     if (!currentFloorId) return;
 
-    const border = borders.find((b) => b.floorId === currentFloorId);
+    // Check if we should re-fit (new floor, different container size, or different mode)
+    const prevFit = hasAutoFittedRef.current.get(currentFloorId);
+    const sizeChanged = prevFit && (
+      Math.abs(prevFit.width - stageSize.width) > 100 ||
+      Math.abs(prevFit.height - stageSize.height) > 100
+    );
+    const modeChanged = prevFit && prevFit.readOnly !== readOnly;
 
-    // Only auto-fit if we haven't done so for this floor yet
-    if (border && stageSize.width > 0 && stageSize.height > 0 && !hasAutoFittedRef.current.has(currentFloorId)) {
-      // Calculate scale to fit border in viewport with padding
-      const padding = 100;
+    if (prevFit && !sizeChanged && !modeChanged) return;
+
+    const border = borders.find(b => b.floorId === currentFloorId);
+    if (border && stageRef.current) {
+      hasAutoFittedRef.current.set(currentFloorId, {
+        width: stageSize.width,
+        height: stageSize.height,
+        readOnly,
+      });
+      const padding = 50;
       const scaleX = (stageSize.width - padding * 2) / border.width;
       const scaleY = (stageSize.height - padding * 2) / border.height;
-      const scale = Math.min(scaleX, scaleY, 1); // Don't zoom in beyond 1x
-
-      // Calculate position to center the border
-      const x = (stageSize.width - border.width * scale) / 2 - border.x * scale;
-      const y = (stageSize.height - border.height * scale) / 2 - border.y * scale;
+      const scale = Math.min(scaleX, scaleY, 1);
 
       setStageScale(scale);
-      setStagePosition({ x, y });
-
-      // Mark this floor as auto-fitted
-      hasAutoFittedRef.current.add(currentFloorId);
+      setStagePosition({
+        x: (stageSize.width - border.width * scale) / 2 - border.x * scale,
+        y: (stageSize.height - border.height * scale) / 2 - border.y * scale,
+      });
     }
-  }, [borders, currentFloorId, stageSize.width, stageSize.height, setStageScale, setStagePosition]);
+  }, [currentFloorId, borders, stageSize, readOnly, setStageScale, setStagePosition]);
 
-  // Update transformer when selection changes
+  // Transformer setup
   useEffect(() => {
-    if (transformerRef.current && stageRef.current) {
-      const transformer = transformerRef.current;
-      const stage = stageRef.current;
+    const transformer = transformerRef.current;
+    const stage = stageRef.current;
+    if (!transformer || !stage) return;
 
-      let selectedNode = null;
+    let selectedNode = null;
+    if (selectedTableId) {
+      selectedNode = stage.findOne(`#${selectedTableId}`);
+    } else if (selectedBorderId) {
+      selectedNode = stage.findOne(`#${selectedBorderId}`);
+    }
 
-      if (selectedTableId) {
-        selectedNode = stage.findOne(`#${selectedTableId}`);
-      } else if (selectedBorderId) {
-        selectedNode = stage.findOne(`#${selectedBorderId}`);
-      }
-
-      if (selectedNode) {
-        transformer.nodes([selectedNode]);
-
-        // Enable all anchors for border resize, limited for tables
-        if (selectedBorderId && currentTool === "select") {
-          transformer.enabledAnchors([
-            "top-left",
-            "top-right",
-            "bottom-left",
-            "bottom-right",
-            "top-center",
-            "middle-right",
-            "bottom-center",
-            "middle-left",
-          ]);
-        } else if (selectedTableId && currentTool === "select") {
-          transformer.enabledAnchors([
-            "top-left",
-            "top-right",
-            "bottom-left",
-            "bottom-right",
-          ]);
-        } else {
-          transformer.enabledAnchors([]);
-        }
-
-        transformer.getLayer()?.batchDraw();
-      } else {
-        transformer.nodes([]);
-        transformer.getLayer()?.batchDraw();
-      }
+    if (selectedNode && currentTool === "select") {
+      transformer.nodes([selectedNode]);
+      transformer.enabledAnchors(selectedBorderId ? [
+        "top-left", "top-right", "bottom-left", "bottom-right",
+        "top-center", "middle-right", "bottom-center", "middle-left",
+      ] : ["top-left", "top-right", "bottom-left", "bottom-right"]);
+      transformer.getLayer()?.batchDraw();
+    } else {
+      transformer.nodes([]);
+      transformer.getLayer()?.batchDraw();
     }
   }, [selectedTableId, selectedBorderId, currentTool]);
 
-  // Handle zoom with mouse wheel
-  const handleWheel = (e: KonvaEventObject<WheelEvent>) => {
-    e.evt.preventDefault();
+  // Canvas bounds
+  const getCanvasBounds = () => {
+    if (tables.length === 0) return { width: 2000, height: 1500 };
+    let maxX = 0, maxY = 0;
+    tables.forEach(t => {
+      maxX = Math.max(maxX, t.position_x + t.width + 200);
+      maxY = Math.max(maxY, t.position_y + t.height + 200);
+    });
+    return { width: Math.max(2000, maxX), height: Math.max(1500, maxY) };
+  };
+  const canvasBounds = getCanvasBounds();
 
+  // Wheel zoom (only in edit mode)
+  const handleWheel = (e: KonvaEventObject<WheelEvent>) => {
+    if (readOnly) return; // Disable zoom in read-only mode
+
+    e.evt.preventDefault();
     const stage = stageRef.current;
     if (!stage) return;
 
-    const oldScale = stageScale;
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
 
     const mousePointTo = {
-      x: (pointer.x - stagePosition.x) / oldScale,
-      y: (pointer.y - stagePosition.y) / oldScale,
+      x: (pointer.x - stagePosition.x) / stageScale,
+      y: (pointer.y - stagePosition.y) / stageScale,
     };
 
     const direction = e.evt.deltaY > 0 ? -1 : 1;
-    const newScale = Math.min(
-      Math.max(oldScale + direction * ZOOM_STEP, MIN_ZOOM),
-      MAX_ZOOM
-    );
-
+    const newScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, stageScale + direction * ZOOM_STEP));
     setStageScale(newScale);
-
-    const newPos = {
+    setStagePosition({
       x: pointer.x - mousePointTo.x * newScale,
       y: pointer.y - mousePointTo.y * newScale,
-    };
-
-    setStagePosition(newPos);
+    });
   };
 
-  // Handle click on empty canvas to deselect, add table, or start/finish wall
+  // Stage click
   const handleStageClick = async (e: KonvaEventObject<MouseEvent | TouchEvent>) => {
-    // Only handle if clicking on stage background and not in read-only mode
-    if (e.target === e.target.getStage() && !readOnly) {
-      if (currentTool === "border") {
-        // Border drawing is handled by mouseDown/mouseUp
-        return;
-      } else if (currentTool === "wall") {
-        await handleWallClick(e);
-      } else if (currentTool === "table") {
-        // Prevent adding tables if no walls exist
-        if (walls.length === 0) {
-          return;
-        }
-        // Add new table at click position
-        await handleAddTable(e);
-      } else {
-        // Deselect in select mode
-        selectTable(null);
-        selectWall(null);
-        selectBorder(null);
-      }
+    if (readOnly) return;
+    
+    // Only handle clicks on stage background
+    if (e.target !== e.target.getStage()) return;
+
+    if (currentTool === "table") {
+      await handleAddTable(e);
+    } else if (currentTool === "select") {
+      selectTable(null);
+      selectBorder(null);
     }
   };
 
-  const handleWallClick = async (e: KonvaEventObject<MouseEvent | TouchEvent>) => {
-    const stage = stageRef.current;
-    if (!stage || !currentFloorId) return;
-
-    const pointer = stage.getPointerPosition();
-    if (!pointer) return;
-
-    // Convert screen coordinates to canvas coordinates
-    const x = (pointer.x - stagePosition.x) / stageScale;
-    const y = (pointer.y - stagePosition.y) / stageScale;
-
-    // Snap to grid if enabled
-    const { snapToGrid, gridSize } = useCanvasStore.getState();
-    const finalX = snapToGrid ? Math.round(x / gridSize) * gridSize : x;
-    const finalY = snapToGrid ? Math.round(y / gridSize) * gridSize : y;
-
-    if (!isDrawingWall) {
-      // Start drawing wall
-      setTempWallStart({ x: finalX, y: finalY });
-      setIsDrawingWall(true);
-    } else {
-      // Finish drawing wall
-      if (tempWallStart) {
-        const WALL_THICKNESS_MAP = {
-          external: 8,
-          internal: 4,
-          fence: 2,
-        };
-
-        const newWall: Wall = {
-          id: `wall-${Date.now()}`,
-          floorId: currentFloorId,
-          type: currentWallType,
-          startX: tempWallStart.x,
-          startY: tempWallStart.y,
-          endX: finalX,
-          endY: finalY,
-          thickness: WALL_THICKNESS_MAP[currentWallType],
-        };
-
-        addWall(newWall);
-        setTempWallStart(null);
-        setIsDrawingWall(false);
-      }
-    }
-  };
-
+  // Add table
   const handleAddTable = async (e: KonvaEventObject<MouseEvent | TouchEvent>) => {
     const stage = stageRef.current;
     if (!stage || !currentFloorId) return;
 
+    const hasBorder = borders.some(b => b.floorId === currentFloorId);
+    if (!hasBorder) return;
+
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
 
-    // Convert screen coordinates to canvas coordinates
     const x = (pointer.x - stagePosition.x) / stageScale;
     const y = (pointer.y - stagePosition.y) / stageScale;
 
-    // Get default size based on table shape
     const { DEFAULT_TABLE_SIZES } = await import("@/modules/dashboard/constants");
     const size = DEFAULT_TABLE_SIZES[useCanvasStore.getState().tableShape];
 
-    // Snap to grid if enabled
     const { snapToGrid, gridSize } = useCanvasStore.getState();
     const finalX = snapToGrid ? Math.round(x / gridSize) * gridSize : x;
     const finalY = snapToGrid ? Math.round(y / gridSize) * gridSize : y;
 
-    // Create table via server action
     const { createTable } = await import("@/modules/dashboard/actions");
     const { addTable } = useCanvasStore.getState();
 
-    // Get venue ID from first floor
-    const floors = useCanvasStore.getState().floors;
     const currentFloor = floors.find(f => f.id === currentFloorId);
     if (!currentFloor) return;
 
-    const tableCount = tables.filter(t => t.floor_id === currentFloorId).length;
-    const tableIdentifier = `T-${tableCount + 1}`;
+    // Generate unique table identifier
+    const venueFloorIds = floors.filter(f => f.venue_id === currentFloor.venue_id).map(f => f.id);
+    const venueTables = tables.filter(t => venueFloorIds.includes(t.floor_id));
+    let maxTableNum = 0;
+    venueTables.forEach(t => {
+      const match = t.table_identifier.match(/^T-(\d+)$/);
+      if (match) maxTableNum = Math.max(maxTableNum, parseInt(match[1], 10));
+    });
+    const tableIdentifier = `T-${maxTableNum + 1}`;
 
     try {
       const result = await createTable({
@@ -540,30 +357,47 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
         width: size.width,
         height: size.height,
         shape: useCanvasStore.getState().tableShape,
-        rotation: 0,
-        minCapacity: 2,
-        maxCapacity: 4,
+        minCapacity: size.minCapacity,
+        maxCapacity: size.maxCapacity,
       });
 
-      if (result.success && result.data) {
+      if (result.data) {
         addTable(result.data);
+        pushHistory({
+          type: 'table_create',
+          elementId: result.data.id,
+          before: null,
+          after: result.data,
+        });
+        selectTable(result.data.id);
+        setCurrentTool("select");
       }
     } catch (error) {
-      console.error("Failed to create table:", error);
+      console.error("Error creating table:", error);
     }
   };
 
-  // Handle stage drag (pan mode)
-  const handleStageDragEnd = (e: KonvaEventObject<DragEvent>) => {
-    const stage = e.target as Konva.Stage;
-    setStagePosition({
-      x: stage.x(),
-      y: stage.y(),
+  // Mouse move for drawing preview
+  const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
+    if (!isDrawingBorder || !tempBorderStart) return;
+    
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const pointer = stage.getPointerPosition();
+    if (!pointer) return;
+
+    setMousePos({
+      x: (pointer.x - stagePosition.x) / stageScale,
+      y: (pointer.y - stagePosition.y) / stageScale,
     });
   };
 
-  // Handle mouse move for wall preview and border preview
-  const handleMouseMove = (e: KonvaEventObject<MouseEvent>) => {
+  // Border drawing
+  const handleBorderMouseDown = (e: KonvaEventObject<MouseEvent>) => {
+    if (readOnly || currentTool !== "border") return;
+    if (e.target !== e.target.getStage()) return;
+
     const stage = stageRef.current;
     if (!stage) return;
 
@@ -573,80 +407,34 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
     const x = (pointer.x - stagePosition.x) / stageScale;
     const y = (pointer.y - stagePosition.y) / stageScale;
 
-    const { snapToGrid, gridSize } = useCanvasStore.getState();
-    const finalX = snapToGrid ? Math.round(x / gridSize) * gridSize : x;
-    const finalY = snapToGrid ? Math.round(y / gridSize) * gridSize : y;
-
-    // Update mouse position for wall or border preview
-    if (isDrawingWall && tempWallStart) {
-      setMousePos({ x: finalX, y: finalY });
-    } else if (isDrawingBorder && tempBorderStart) {
-      setMousePos({ x: finalX, y: finalY });
-    }
-  };
-
-  // Handle border drawing with mouse down/up
-  const handleBorderMouseDown = (e: KonvaEventObject<MouseEvent>) => {
-    if (currentTool !== "border" || readOnly || isDrawingBorder) return;
-
-    const stage = stageRef.current;
-    if (!stage || !currentFloorId) return;
-
-    const pointer = stage.getPointerPosition();
-    if (!pointer) return;
-
-    const x = (pointer.x - stagePosition.x) / stageScale;
-    const y = (pointer.y - stagePosition.y) / stageScale;
-
-    const { snapToGrid, gridSize } = useCanvasStore.getState();
-    const finalX = snapToGrid ? Math.round(x / gridSize) * gridSize : x;
-    const finalY = snapToGrid ? Math.round(y / gridSize) * gridSize : y;
-
-    setTempBorderStart({ x: finalX, y: finalY });
+    setTempBorderStart({ x, y });
     setIsDrawingBorder(true);
   };
 
-  const handleBorderMouseUp = async (e: KonvaEventObject<MouseEvent>) => {
-    if (!isDrawingBorder || !tempBorderStart || !currentFloorId) return;
+  const handleBorderMouseUp = async () => {
+    if (!isDrawingBorder || !tempBorderStart || !mousePos || !currentFloorId) return;
 
-    const stage = stageRef.current;
-    if (!stage) return;
+    const rectX = Math.min(tempBorderStart.x, mousePos.x);
+    const rectY = Math.min(tempBorderStart.y, mousePos.y);
+    const rectWidth = Math.abs(mousePos.x - tempBorderStart.x);
+    const rectHeight = Math.abs(mousePos.y - tempBorderStart.y);
 
-    const pointer = stage.getPointerPosition();
-    if (!pointer) return;
-
-    const x = (pointer.x - stagePosition.x) / stageScale;
-    const y = (pointer.y - stagePosition.y) / stageScale;
-
-    const { snapToGrid, gridSize, setCurrentTool } = useCanvasStore.getState();
-    const finalX = snapToGrid ? Math.round(x / gridSize) * gridSize : x;
-    const finalY = snapToGrid ? Math.round(y / gridSize) * gridSize : y;
-
-    // Calculate rectangle bounds
-    const rectX = Math.min(tempBorderStart.x, finalX);
-    const rectY = Math.min(tempBorderStart.y, finalY);
-    const rectWidth = Math.abs(finalX - tempBorderStart.x);
-    const rectHeight = Math.abs(finalY - tempBorderStart.y);
-
-    // Minimum size validation
-    if (rectWidth < 100 || rectHeight < 100) {
-      alert("Border must be at least 100x100 pixels");
+    if (rectWidth < 50 || rectHeight < 50) {
       setIsDrawingBorder(false);
       setTempBorderStart(null);
       setMousePos(null);
       return;
     }
 
-    // Create or update border (only one per floor)
-    const newBorder: Border = {
+    const newBorder = {
       id: `border-${currentFloorId}`,
       floorId: currentFloorId,
       x: rectX,
       y: rectY,
       width: rectWidth,
       height: rectHeight,
-      strokeColor: "#374151",
-      strokeWidth: 4,
+      strokeColor: "#6b7280",
+      strokeWidth: 3,
     };
 
     addBorder(newBorder);
@@ -654,66 +442,61 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
     setTempBorderStart(null);
     setMousePos(null);
 
-    // Save to database
     const { updateFloorBorder } = await import("@/modules/dashboard/actions");
     try {
       await updateFloorBorder(currentFloorId, {
-        x: rectX,
-        y: rectY,
-        width: rectWidth,
-        height: rectHeight,
+        x: rectX, y: rectY, width: rectWidth, height: rectHeight,
       });
     } catch (error) {
       console.error("Failed to save border:", error);
     }
 
-    // Auto-switch to select tool after drawing border
     setCurrentTool("select");
   };
 
-  const hasBorder = borders.some((b) => b.floorId === currentFloorId);
+  const handleStageDragEnd = (e: KonvaEventObject<DragEvent>) => {
+    const stage = e.target;
+    if (stage === stageRef.current) {
+      setStagePosition({ x: stage.x(), y: stage.y() });
+    }
+  };
+
+  const hasBorder = borders.some(b => b.floorId === currentFloorId);
+
+  // Cursor style
+  const getCursor = () => {
+    if (isSpacePressed) return 'grab';
+    if (currentTool === 'pan') return 'grab';
+    if (currentTool === 'border') return 'crosshair';
+    if (currentTool === 'table') return hasBorder ? 'copy' : 'not-allowed';
+    return 'default';
+  };
 
   return (
-    <div
-      ref={containerRef}
-      className="relative h-full w-full bg-white overflow-hidden"
-    >
-      {/* Border Drawing Instructions */}
+    <div ref={containerRef} className="relative h-full w-full bg-gray-100 overflow-hidden">
+      {/* Instructions */}
       {!readOnly && currentTool === "border" && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-lime-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
-          {!isDrawingBorder
-            ? "Click and drag to draw the floor border"
-            : "Release to finish drawing the border"}
+          {!isDrawingBorder ? "Click and drag to draw the floor boundary" : "Release to finish"}
         </div>
       )}
 
-      {/* Wall Drawing Instructions */}
-      {!readOnly && currentTool === "wall" && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-lime-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
-          {!isDrawingWall
-            ? "Click to start drawing a wall"
-            : "Click again to finish the wall"}
-        </div>
-      )}
-
-      {/* No Border Warning for Tables */}
       {!readOnly && currentTool === "table" && !hasBorder && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-yellow-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
-          Please draw a floor border first before adding tables
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-amber-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
+          Draw a floor boundary first (press B)
         </div>
       )}
 
-      {/* No Walls Warning */}
-      {!readOnly && currentTool === "table" && hasBorder && walls.length === 0 && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-yellow-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
-          Please draw walls first before adding tables
+      {!readOnly && currentTool === "table" && hasBorder && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-lime-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
+          Click inside the floor to add a table
         </div>
       )}
 
-      {/* ESC Cancel Tip - shows when something is selected or drawing is in progress */}
-      {!readOnly && (selectedTableId || selectedWallId || selectedBorderId || isDrawingWall || isDrawingBorder) && (
-        <div className="absolute bottom-4 left-4 z-10 bg-gray-800/90 text-white px-3 py-2 rounded-lg shadow-lg text-xs font-medium flex items-center gap-2 backdrop-blur-sm">
-          <kbd className="bg-gray-700 px-1.5 py-0.5 rounded text-gray-300 font-mono text-xs">ESC</kbd>
+      {/* ESC hint */}
+      {!readOnly && (selectedTableId || selectedBorderId || isDrawingBorder) && (
+        <div className="absolute bottom-4 left-4 z-10 bg-gray-800/90 text-white px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2">
+          <kbd className="bg-gray-700 px-1.5 py-0.5 rounded font-mono">ESC</kbd>
           <span className="text-gray-300">to cancel</span>
         </div>
       )}
@@ -732,83 +515,50 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
         onMouseDown={currentTool === "border" ? handleBorderMouseDown : undefined}
         onMouseUp={currentTool === "border" ? handleBorderMouseUp : undefined}
         onMouseMove={handleMouseMove}
-        draggable={isSpacePressed || (!readOnly && currentTool === "pan")}
+        draggable={!readOnly && (isSpacePressed || currentTool === "pan")}
         onDragEnd={handleStageDragEnd}
-        style={{
-          cursor: isSpacePressed 
-            ? 'grab' 
-            : currentTool === 'pan' 
-              ? 'grab'
-              : currentTool === 'wall' || currentTool === 'border'
-                ? 'crosshair'
-                : currentTool === 'table'
-                  ? 'copy'
-                  : 'default'
-        }}
+        style={{ cursor: getCursor() }}
       >
-        {/* Grid Layer */}
+        {/* Grid */}
         <Layer>
           <GridLayer width={canvasBounds.width} height={canvasBounds.height} />
         </Layer>
 
-        {/* Border Layer */}
+        {/* Borders */}
         <Layer>
           {borders
-            .filter((border) => border.floorId === currentFloorId)
-            .map((border) => (
+            .filter(border => border.floorId === currentFloorId)
+            .map(border => (
               <BorderShape
                 key={border.id}
                 {...border}
                 isSelected={border.id === selectedBorderId}
+                readOnly={readOnly}
               />
             ))}
+        </Layer>
 
-          {/* Preview rectangle while drawing border */}
-          {isDrawingBorder && tempBorderStart && mousePos && (
+        {/* Drawing preview */}
+        {isDrawingBorder && tempBorderStart && mousePos && (
+          <Layer>
             <Rect
               x={Math.min(tempBorderStart.x, mousePos.x)}
               y={Math.min(tempBorderStart.y, mousePos.y)}
               width={Math.abs(mousePos.x - tempBorderStart.x)}
               height={Math.abs(mousePos.y - tempBorderStart.y)}
               stroke="#84cc16"
-              strokeWidth={4}
+              strokeWidth={3}
               dash={[10, 5]}
-              fill="rgba(132, 204, 22, 0.1)"
               listening={false}
             />
-          )}
-        </Layer>
+          </Layer>
+        )}
 
-        {/* Walls Layer */}
-        <Layer>
-          {walls
-            .filter((wall) => wall.floorId === currentFloorId)
-            .map((wall) => (
-              <WallShape
-                key={wall.id}
-                {...wall}
-                isSelected={wall.id === selectedWallId}
-              />
-            ))}
-
-          {/* Preview line while drawing wall */}
-          {isDrawingWall && tempWallStart && mousePos && (
-            <Line
-              points={[tempWallStart.x, tempWallStart.y, mousePos.x, mousePos.y]}
-              stroke="#84cc16"
-              strokeWidth={4}
-              dash={[10, 5]}
-              lineCap="round"
-              listening={false}
-            />
-          )}
-        </Layer>
-
-        {/* Tables Layer */}
+        {/* Tables */}
         <Layer>
           {tables
-            .filter((table) => table.floor_id === currentFloorId)
-            .map((table) => (
+            .filter(table => table.floor_id === currentFloorId)
+            .map(table => (
               <TableShape
                 key={table.id}
                 id={table.id}
@@ -822,11 +572,12 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
                 tableIdentifier={table.table_identifier}
                 capacity={table.max_capacity ?? 4}
                 isSelected={table.id === selectedTableId}
+                readOnly={readOnly}
               />
             ))}
         </Layer>
 
-        {/* Transformer Layer (for selection) - only in edit mode */}
+        {/* Transformer */}
         {!readOnly && (
           <Layer>
             <Transformer
@@ -841,23 +592,24 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
         )}
       </Stage>
 
-      {/* Zoom Controls (floating) */}
-      <ZoomControls />
+      {!readOnly && <ZoomControls />}
 
-      {/* Keyboard Shortcuts Help Button */}
-      <button
-        onClick={() => setShowShortcutsHelp(true)}
-        className="absolute bottom-4 right-[76px] z-10 bg-white hover:bg-gray-50 text-gray-600 w-9 h-9 rounded-xl shadow-sm flex items-center justify-center text-sm font-medium transition-colors"
-        title="Keyboard shortcuts (?)"
-      >
-        ?
-      </button>
+      {!readOnly && (
+        <button
+          onClick={() => setShowShortcutsHelp(true)}
+          className="absolute bottom-4 right-[76px] z-10 bg-white hover:bg-gray-50 text-gray-600 w-9 h-9 rounded-xl shadow-sm flex items-center justify-center text-sm font-medium transition-colors"
+          title="Keyboard shortcuts (?)"
+        >
+          ?
+        </button>
+      )}
 
-      {/* Keyboard Shortcuts Help Panel */}
-      <KeyboardShortcutsHelp 
-        isOpen={showShortcutsHelp} 
-        onClose={() => setShowShortcutsHelp(false)} 
-      />
+      {!readOnly && (
+        <KeyboardShortcutsHelp
+          isOpen={showShortcutsHelp}
+          onClose={() => setShowShortcutsHelp(false)}
+        />
+      )}
     </div>
   );
 }

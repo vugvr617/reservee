@@ -1,12 +1,13 @@
 "use client";
 
-import { Rect } from "react-konva";
+import { Rect, Group } from "react-konva";
 import type { Border } from "@/modules/dashboard/types";
 import { useCanvasStore } from "@/stores/canvas-store";
 import type { KonvaEventObject } from "konva/lib/Node";
 
 interface BorderShapeProps extends Border {
   isSelected: boolean;
+  readOnly?: boolean;
 }
 
 export function BorderShape({
@@ -15,14 +16,19 @@ export function BorderShape({
   y,
   width,
   height,
-  strokeColor,
-  strokeWidth,
   isSelected,
+  readOnly = false,
+  zones,
 }: BorderShapeProps) {
-  const { selectBorder, updateBorder, borders } = useCanvasStore();
+  const { selectBorder, updateBorder, borders, currentTool } = useCanvasStore();
+
+  // Disable listening when in table mode or read-only mode
+  const shouldListen = !readOnly && (currentTool === "select" || currentTool === "border");
 
   const handleClick = () => {
-    selectBorder(id);
+    if (shouldListen) {
+      selectBorder(id);
+    }
   };
 
   const handleTransformEnd = async (e: KonvaEventObject<Event>) => {
@@ -30,7 +36,6 @@ export function BorderShape({
     const scaleX = node.scaleX();
     const scaleY = node.scaleY();
 
-    // Reset scale and apply to dimensions
     node.scaleX(1);
     node.scaleY(1);
 
@@ -46,7 +51,6 @@ export function BorderShape({
       height: newHeight,
     });
 
-    // Save to database
     const border = borders.find((b) => b.id === id);
     if (border) {
       const { updateFloorBorder } = await import("@/modules/dashboard/actions");
@@ -64,21 +68,51 @@ export function BorderShape({
   };
 
   return (
-    <Rect
-      id={id}
-      x={x}
-      y={y}
-      width={width}
-      height={height}
-      stroke={isSelected ? "#84cc16" : strokeColor}
-      strokeWidth={isSelected ? strokeWidth + 2 : strokeWidth}
-      fill="transparent"
-      dash={[10, 5]} // Dashed line to distinguish from solid walls
-      onClick={handleClick}
-      onTap={handleClick}
-      onTransformEnd={handleTransformEnd}
-      listening={true}
-      draggable={false}
-    />
+    <Group>
+      {/* Background floor with subtle texture */}
+      <Rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        fill="#f8f7f4"
+        cornerRadius={8}
+        listening={false}
+      />
+
+      {/* Subtle inner shadow effect */}
+      <Rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        stroke="rgba(0, 0, 0, 0.03)"
+        strokeWidth={20}
+        cornerRadius={8}
+        listening={false}
+      />
+
+      {/* Main border outline (wall) */}
+      <Rect
+        id={id}
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        stroke={isSelected ? "#84cc16" : "#6b7280"}
+        strokeWidth={isSelected ? 4 : 3}
+        fill="transparent"
+        cornerRadius={8}
+        onClick={handleClick}
+        onTap={handleClick}
+        onTransformEnd={handleTransformEnd}
+        listening={shouldListen}
+        draggable={false}
+        shadowColor="rgba(0, 0, 0, 0.1)"
+        shadowBlur={isSelected ? 8 : 0}
+        shadowOffsetX={0}
+        shadowOffsetY={2}
+      />
+    </Group>
   );
 }

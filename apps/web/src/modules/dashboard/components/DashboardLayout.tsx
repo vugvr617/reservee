@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Settings2 } from "lucide-react";
+import { Settings2, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NavigationSidebar } from "./NavigationSidebar";
 import { FloorTabs } from "./FloorTabs";
@@ -24,6 +24,7 @@ export function DashboardLayout({
 }: DashboardLayoutProps) {
   const { setFloors, setTables, setCurrentFloor, currentFloorId, setBorders } = useCanvasStore();
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isGuestPanelCollapsed, setIsGuestPanelCollapsed] = useState(false);
 
   // Initialize store with server data
   useEffect(() => {
@@ -37,8 +38,12 @@ export function DashboardLayout({
         return config && typeof config === 'object' && 'border' in config && config.border;
       })
       .map((floor) => {
-        const config = floor.layout_config as { border: { x: number; y: number; width: number; height: number } };
+        const config = floor.layout_config as {
+          border: { x: number; y: number; width: number; height: number };
+          zones?: Array<{ id: string; label: string; x: number; y: number; width: number; height: number; color?: string }>;
+        };
         const borderConfig = config.border;
+
         return {
           id: `border-${floor.id}`,
           floorId: floor.id,
@@ -48,6 +53,7 @@ export function DashboardLayout({
           height: borderConfig.height,
           strokeColor: "#374151",
           strokeWidth: 4,
+          zones: config.zones,
         };
       });
     setBorders(loadedBorders);
@@ -59,12 +65,12 @@ export function DashboardLayout({
   }, [initialFloors, initialTables, setFloors, setTables, setBorders, setCurrentFloor, currentFloorId]);
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
       {/* Left Navigation Sidebar */}
       <NavigationSidebar />
 
       {/* Main Content */}
-      <div className="flex flex-col flex-1">
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         {/* Header with Floor Tabs */}
         <header className="border-b border-gray-200 bg-white">
         <div className="flex items-center justify-between px-6 py-4">
@@ -80,21 +86,37 @@ export function DashboardLayout({
         </header>
 
         {/* Main Content Area */}
-        <div className="flex flex-1 overflow-hidden relative">
-        {/* Canvas Area - Full Width */}
-        <main className="flex-1 relative bg-white">
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+          {/* Canvas Area */}
+          <main className="flex-1 min-w-0 relative bg-white">
           {currentFloorId ? (
             <>
               <FloorPlanCanvas readOnly={!isEditMode} />
 
-              {/* Edit Mode Button - Floating (when guest panel is visible, position it to the left of panel) */}
-              <Button
-                onClick={() => setIsEditMode(true)}
-                className="absolute top-4 right-[336px] bg-lime-500 hover:bg-lime-600 text-white gap-2 z-20"
-              >
-                <Settings2 className="h-4 w-4" />
-                Edit Floor Plan
-              </Button>
+              {/* Action Buttons - Floating */}
+              <div className="absolute top-4 right-4 flex gap-2 z-20">
+                {!isEditMode && (
+                  <Button
+                    onClick={() => setIsGuestPanelCollapsed(!isGuestPanelCollapsed)}
+                    variant="outline"
+                    size="icon"
+                    className="bg-white hover:bg-gray-50"
+                  >
+                    {isGuestPanelCollapsed ? (
+                      <PanelRightOpen className="h-4 w-4" />
+                    ) : (
+                      <PanelRightClose className="h-4 w-4" />
+                    )}
+                  </Button>
+                )}
+                <Button
+                  onClick={() => setIsEditMode(true)}
+                  className="bg-lime-500 hover:bg-lime-600 text-white gap-2"
+                >
+                  <Settings2 className="h-4 w-4" />
+                  Edit Floor Plan
+                </Button>
+              </div>
             </>
           ) : (
             <div className="flex items-center justify-center h-full">
@@ -104,10 +126,10 @@ export function DashboardLayout({
               </div>
             </div>
           )}
-        </main>
+          </main>
 
-          {/* Guest List Panel - Floating on right side */}
-          {!isEditMode && <GuestListPanel />}
+          {/* Guest List Panel */}
+          {!isEditMode && <GuestListPanel isCollapsed={isGuestPanelCollapsed} />}
         </div>
 
         {/* Edit Mode Modal */}

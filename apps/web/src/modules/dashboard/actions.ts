@@ -267,10 +267,10 @@ export async function updateTable(tableId: string, updates: UpdateTableInput) {
 
 export async function deleteTable(tableId: string) {
   try {
-    // Soft delete by setting is_active to false
+    // Hard delete - remove the table completely
     const { error } = await supabase
       .from("tables")
-      .update({ is_active: false })
+      .delete()
       .eq("id", tableId);
 
     if (error) throw error;

@@ -32,17 +32,17 @@ export function EditModeModal({ isOpen, onClose, venueId }: EditModeModalProps) 
         {/* Modal Content */}
         <div className="flex flex-1 overflow-hidden">
           {/* Left Sidebar - Tools */}
-          <aside className="w-[360px] bg-gray-50 border-r border-gray-200 overflow-y-auto shrink-0">
+          <aside className="w-64 bg-gray-50 border-r border-gray-200 overflow-y-auto shrink-0">
             <ToolPanel />
           </aside>
 
           {/* Canvas Area */}
-          <main className="flex-1 relative bg-white min-w-0">
+          <main className="flex-1 relative bg-white min-w-0 max-w-[800px] mx-auto">
             <FloorPlanCanvas readOnly={false} />
           </main>
 
           {/* Right Sidebar - Properties */}
-          <aside className="w-[400px] bg-gray-50 border-l border-gray-200 overflow-y-auto shrink-0">
+          <aside className="w-72 bg-gray-50 border-l border-gray-200 overflow-y-auto shrink-0">
             <PropertiesPanel />
           </aside>
         </div>

@@ -5,8 +5,6 @@ import type {
   Tool,
   TableShape,
   Position,
-  Wall,
-  WallType,
   Border,
 } from "@/modules/dashboard/types";
 import {
@@ -23,6 +21,9 @@ export interface HistoryEntry {
   after: Partial<CanvasTable> | null;
 }
 
+// Simplified Tool type (no walls)
+type SimpleTool = "select" | "pan" | "border" | "table";
+
 interface CanvasStore {
   // Floor management
   currentFloorId: string | null;
@@ -31,13 +32,6 @@ interface CanvasStore {
   // Tables
   tables: CanvasTable[];
   selectedTableId: string | null;
-
-  // Walls
-  walls: Wall[];
-  selectedWallId: string | null;
-  currentWallType: WallType;
-  isDrawingWall: boolean;
-  tempWallStart: Position | null;
 
   // Borders
   borders: Border[];
@@ -54,38 +48,28 @@ interface CanvasStore {
   canvasHeight: number;
 
   // Tools
-  currentTool: Tool;
+  currentTool: SimpleTool;
   tableShape: TableShape;
 
   // History (undo/redo)
   history: HistoryEntry[];
   historyIndex: number;
 
-  // Actions
+  // Floor Actions
   setCurrentFloor: (floorId: string | null) => void;
   setFloors: (floors: Floor[]) => void;
   addFloor: (floor: Floor) => void;
   updateFloor: (floorId: string, updates: Partial<Floor>) => void;
   deleteFloor: (floorId: string) => void;
 
+  // Table Actions
   setTables: (tables: CanvasTable[]) => void;
   addTable: (table: CanvasTable) => void;
   updateTable: (id: string, updates: Partial<CanvasTable>) => void;
   deleteTable: (id: string) => void;
-
   selectTable: (id: string | null) => void;
-  setCurrentTool: (tool: Tool) => void;
-  setTableShape: (shape: TableShape) => void;
 
-  setWalls: (walls: Wall[]) => void;
-  addWall: (wall: Wall) => void;
-  updateWall: (id: string, updates: Partial<Wall>) => void;
-  deleteWall: (id: string) => void;
-  selectWall: (id: string | null) => void;
-  setCurrentWallType: (type: WallType) => void;
-  setIsDrawingWall: (isDrawing: boolean) => void;
-  setTempWallStart: (position: Position | null) => void;
-
+  // Border Actions
   setBorders: (borders: Border[]) => void;
   addBorder: (border: Border) => void;
   updateBorder: (id: string, updates: Partial<Border>) => void;
@@ -94,12 +78,17 @@ interface CanvasStore {
   setIsDrawingBorder: (isDrawing: boolean) => void;
   setTempBorderStart: (position: Position | null) => void;
 
+  // Tool Actions
+  setCurrentTool: (tool: SimpleTool) => void;
+  setTableShape: (shape: TableShape) => void;
+
+  // Canvas Actions
   setStageScale: (scale: number) => void;
   setStagePosition: (position: Position) => void;
   setSnapToGrid: (enabled: boolean) => void;
   setGridSize: (size: number) => void;
 
-  // History (undo/redo)
+  // History Actions
   pushHistory: (entry: HistoryEntry) => void;
   undo: () => void;
   redo: () => void;
@@ -116,11 +105,6 @@ const initialState = {
   floors: [],
   tables: [],
   selectedTableId: null,
-  walls: [],
-  selectedWallId: null,
-  currentWallType: "external" as WallType,
-  isDrawingWall: false,
-  tempWallStart: null,
   borders: [],
   selectedBorderId: null,
   isDrawingBorder: false,
@@ -131,7 +115,7 @@ const initialState = {
   gridSize: DEFAULT_GRID_SIZE,
   canvasWidth: DEFAULT_CANVAS_WIDTH,
   canvasHeight: DEFAULT_CANVAS_HEIGHT,
-  currentTool: "select" as Tool,
+  currentTool: "select" as SimpleTool,
   tableShape: "square" as TableShape,
   history: [] as HistoryEntry[],
   historyIndex: -1,
@@ -144,7 +128,8 @@ export const useCanvasStore = create<CanvasStore>((set) => ({
   setCurrentFloor: (floorId) =>
     set(() => ({
       currentFloorId: floorId,
-      selectedTableId: null, // Deselect table when switching floors
+      selectedTableId: null,
+      selectedBorderId: null,
     })),
 
   setFloors: (floors) => set({ floors }),
@@ -189,36 +174,7 @@ export const useCanvasStore = create<CanvasStore>((set) => ({
       selectedTableId: state.selectedTableId === id ? null : state.selectedTableId,
     })),
 
-  // Selection and tools
-  selectTable: (id) => set({ selectedTableId: id }),
-  setCurrentTool: (tool) => set({ currentTool: tool }),
-  setTableShape: (shape) => set({ tableShape: shape }),
-
-  // Wall actions
-  setWalls: (walls) => set({ walls }),
-
-  addWall: (wall) =>
-    set((state) => ({
-      walls: [...state.walls, wall],
-    })),
-
-  updateWall: (id, updates) =>
-    set((state) => ({
-      walls: state.walls.map((wall) =>
-        wall.id === id ? { ...wall, ...updates } : wall
-      ),
-    })),
-
-  deleteWall: (id) =>
-    set((state) => ({
-      walls: state.walls.filter((wall) => wall.id !== id),
-      selectedWallId: state.selectedWallId === id ? null : state.selectedWallId,
-    })),
-
-  selectWall: (id) => set({ selectedWallId: id }),
-  setCurrentWallType: (type) => set({ currentWallType: type }),
-  setIsDrawingWall: (isDrawing) => set({ isDrawingWall: isDrawing }),
-  setTempWallStart: (position) => set({ tempWallStart: position }),
+  selectTable: (id) => set({ selectedTableId: id, selectedBorderId: null }),
 
   // Border actions
   setBorders: (borders) => set({ borders }),
@@ -250,9 +206,13 @@ export const useCanvasStore = create<CanvasStore>((set) => ({
       selectedBorderId: state.selectedBorderId === id ? null : state.selectedBorderId,
     })),
 
-  selectBorder: (id) => set({ selectedBorderId: id }),
+  selectBorder: (id) => set({ selectedBorderId: id, selectedTableId: null }),
   setIsDrawingBorder: (isDrawing) => set({ isDrawingBorder: isDrawing }),
   setTempBorderStart: (position) => set({ tempBorderStart: position }),
+
+  // Tool actions
+  setCurrentTool: (tool) => set({ currentTool: tool }),
+  setTableShape: (shape) => set({ tableShape: shape }),
 
   // Canvas state
   setStageScale: (scale) => set({ stageScale: scale }),
@@ -263,9 +223,7 @@ export const useCanvasStore = create<CanvasStore>((set) => ({
   // History (undo/redo) actions
   pushHistory: (entry) =>
     set((state) => {
-      // Remove any redo entries (entries after current index)
       const newHistory = state.history.slice(0, state.historyIndex + 1);
-      // Add new entry (limit history to 50 entries)
       newHistory.push(entry);
       if (newHistory.length > 50) {
         newHistory.shift();
@@ -283,18 +241,15 @@ export const useCanvasStore = create<CanvasStore>((set) => ({
 
       switch (entry.type) {
         case 'table_create':
-          // Undo create = delete the table
           newTables = state.tables.filter((t) => t.id !== entry.elementId);
           break;
         case 'table_delete':
-          // Undo delete = restore the table
           if (entry.before) {
             newTables = [...state.tables, entry.before as CanvasTable];
           }
           break;
         case 'table_move':
         case 'table_update':
-          // Undo update = restore previous values
           if (entry.before) {
             newTables = state.tables.map((t) =>
               t.id === entry.elementId ? { ...t, ...entry.before } : t
@@ -319,18 +274,15 @@ export const useCanvasStore = create<CanvasStore>((set) => ({
 
       switch (entry.type) {
         case 'table_create':
-          // Redo create = add the table back
           if (entry.after) {
             newTables = [...state.tables, entry.after as CanvasTable];
           }
           break;
         case 'table_delete':
-          // Redo delete = remove the table again
           newTables = state.tables.filter((t) => t.id !== entry.elementId);
           break;
         case 'table_move':
         case 'table_update':
-          // Redo update = apply the new values
           if (entry.after) {
             newTables = state.tables.map((t) =>
               t.id === entry.elementId ? { ...t, ...entry.after } : t
@@ -346,14 +298,8 @@ export const useCanvasStore = create<CanvasStore>((set) => ({
       };
     }),
 
-  canUndo: () => {
-    return false; // Use historyIndex state directly in components
-  },
-
-  canRedo: () => {
-    return false; // Use history.length and historyIndex state directly in components
-  },
-
+  canUndo: () => false,
+  canRedo: () => false,
   clearHistory: () => set({ history: [], historyIndex: -1 }),
 
   // Reset

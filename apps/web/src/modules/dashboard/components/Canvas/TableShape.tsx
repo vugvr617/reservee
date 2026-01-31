@@ -1,11 +1,11 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef } from "react";
 import { Rect, Circle, Ellipse, Text, Group } from "react-konva";
 import type Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import { useCanvasStore } from "@/stores/canvas-store";
-import { updateTablePosition } from "@/modules/dashboard/actions";
+import { updateTablePosition, updateTable as updateTableAction } from "@/modules/dashboard/actions";
 import { TABLE_STATUS_COLORS } from "@/modules/dashboard/constants";
 import { constrainToBorder } from "@/modules/dashboard/utils/collision";
 
@@ -21,6 +21,7 @@ interface TableShapeProps {
   tableIdentifier: string;
   capacity: number;
   isSelected: boolean;
+  readOnly?: boolean;
 }
 
 export function TableShape({
@@ -35,6 +36,7 @@ export function TableShape({
   tableIdentifier,
   capacity,
   isSelected,
+  readOnly = false,
 }: TableShapeProps) {
   const groupRef = useRef<Konva.Group>(null);
   const {
@@ -45,35 +47,55 @@ export function TableShape({
     updateTable: updateTableInStore,
     borders,
     currentFloorId,
+    pushHistory,
   } = useCanvasStore();
 
   const fillColor = TABLE_STATUS_COLORS[status];
-  const strokeColor = isSelected ? "#84cc16" : "#333333";
-  const strokeWidth = isSelected ? 3 : 2;
+  const strokeColor = isSelected ? "#84cc16" : "#6b7280";
+  const strokeWidth = isSelected ? 2 : 1;
 
-  const handleClick = () => {
+  const handleClick = (e: KonvaEventObject<MouseEvent | TouchEvent>) => {
+    if (readOnly) return; // Disable selection in read-only mode
+    if (currentTool === "select") {
+      e.cancelBubble = true; // Prevent stage click
+      selectTable(id);
+    }
+  };
+
+  const handleDragStart = (e: KonvaEventObject<DragEvent>) => {
     if (currentTool === "select") {
       selectTable(id);
     }
   };
 
-  const handleDragStart = () => {
-    if (currentTool === "select") {
-      selectTable(id);
+  // Constrain position during drag (real-time)
+  const handleDragMove = (e: KonvaEventObject<DragEvent>) => {
+    const node = e.target;
+    if (!node) return;
+
+    const border = borders.find((b) => b.floorId === currentFloorId);
+    if (!border) return;
+
+    const nodeX = node.x();
+    const nodeY = node.y();
+    const constrained = constrainToBorder(nodeX, nodeY, width, height, border);
+
+    // Only update if position changed (to avoid unnecessary updates)
+    if (nodeX !== constrained.x || nodeY !== constrained.y) {
+      node.position({ x: constrained.x, y: constrained.y });
     }
   };
 
   const handleDragEnd = async (e: KonvaEventObject<DragEvent>) => {
-    const node = e.target.getParent();
+    const node = e.target;
     if (!node) return;
 
     let newX = node.x();
     let newY = node.y();
 
-    // Get border for current floor
     const border = borders.find((b) => b.floorId === currentFloorId);
 
-    // Constrain to border first
+    // Final constraint check
     const constrained = constrainToBorder(newX, newY, width, height, border);
     newX = constrained.x;
     newY = constrained.y;
@@ -82,86 +104,116 @@ export function TableShape({
     if (snapToGrid) {
       newX = Math.round(newX / gridSize) * gridSize;
       newY = Math.round(newY / gridSize) * gridSize;
-
-      // Re-constrain after snapping (edge case where snap pushes outside border)
+      // Re-constrain after snapping
       const reConstrained = constrainToBorder(newX, newY, width, height, border);
       newX = reConstrained.x;
       newY = reConstrained.y;
     }
 
-    // Update node position to constrained value
     node.position({ x: newX, y: newY });
 
-    // Update in store (optimistic)
-    updateTableInStore(id, {
-      position_x: newX,
-      position_y: newY,
+    // Only save if position actually changed
+    if (newX === x && newY === y) return;
+
+    // Push to history
+    pushHistory({
+      type: 'table_move',
+      elementId: id,
+      before: { position_x: x, position_y: y },
+      after: { position_x: newX, position_y: newY },
     });
 
-    // Save to database
+    updateTableInStore(id, { position_x: newX, position_y: newY });
+
     try {
       await updateTablePosition(id, newX, newY);
     } catch (error) {
       console.error("Failed to save table position:", error);
-      // Revert on error
       node.position({ x, y });
-      updateTableInStore(id, {
-        position_x: x,
-        position_y: y,
-      });
+      updateTableInStore(id, { position_x: x, position_y: y });
     }
   };
 
-  const draggable = currentTool === "select";
-  const cursorStyle = currentTool === "select" ? "pointer" : "default";
+  const handleTransformEnd = async (e: KonvaEventObject<Event>) => {
+    const node = e.target as Konva.Group;
+    const scaleX = node.scaleX();
+    const scaleY = node.scaleY();
 
-  // Real-time drag constraint function
-  const dragBoundFunc = (pos: { x: number; y: number }) => {
-    const border = borders.find((b) => b.floorId === currentFloorId);
-    return constrainToBorder(pos.x, pos.y, width, height, border);
+    // Reset scale to 1
+    node.scaleX(1);
+    node.scaleY(1);
+
+    const newWidth = Math.max(40, Math.round(width * scaleX));
+    const newHeight = Math.max(40, Math.round(height * scaleY));
+
+    // Update children dimensions directly so Transformer syncs immediately
+    const children = node.getChildren();
+    children.forEach((child) => {
+      if (child.className === 'Rect') {
+        child.width(newWidth);
+        child.height(newHeight);
+      } else if (child.className === 'Circle') {
+        const radius = Math.min(newWidth, newHeight) / 2;
+        (child as Konva.Circle).radius(radius);
+        child.x(newWidth / 2);
+        child.y(newHeight / 2);
+      } else if (child.className === 'Ellipse') {
+        (child as Konva.Ellipse).radiusX(newWidth / 2);
+        (child as Konva.Ellipse).radiusY(newHeight / 2);
+        child.x(newWidth / 2);
+        child.y(newHeight / 2);
+      } else if (child.className === 'Text') {
+        child.width(newWidth);
+        // Update y position for capacity text (second text element)
+        if ((child as Konva.Text).text() !== tableIdentifier) {
+          child.y(newHeight - 18);
+        } else {
+          child.height(newHeight);
+        }
+      }
+    });
+
+    // Force redraw to update Transformer bounds
+    node.getLayer()?.batchDraw();
+
+    pushHistory({
+      type: 'table_update',
+      elementId: id,
+      before: { width, height },
+      after: { width: newWidth, height: newHeight },
+    });
+
+    updateTableInStore(id, { width: newWidth, height: newHeight });
+
+    try {
+      await updateTableAction(id, { width: newWidth, height: newHeight });
+    } catch (error) {
+      console.error("Failed to save table size:", error);
+    }
   };
 
-  // Render different shapes
+  // Only allow dragging in select mode and not in read-only mode
+  const draggable = !readOnly && currentTool === "select";
+
+  // Render shape
   const renderShape = () => {
+    const commonProps = {
+      fill: fillColor,
+      stroke: strokeColor,
+      strokeWidth,
+    };
+
     if (shape === "square" || shape === "rectangular") {
-      return (
-        <Rect
-          width={width}
-          height={height}
-          fill={fillColor}
-          stroke={strokeColor}
-          strokeWidth={strokeWidth}
-          cornerRadius={4}
-        />
-      );
+      return <Rect width={width} height={height} {...commonProps} cornerRadius={6} />;
     }
 
     if (shape === "round") {
       const radius = Math.min(width, height) / 2;
-      return (
-        <Circle
-          x={width / 2}
-          y={height / 2}
-          radius={radius}
-          fill={fillColor}
-          stroke={strokeColor}
-          strokeWidth={strokeWidth}
-        />
-      );
+      return <Circle x={width / 2} y={height / 2} radius={radius} {...commonProps} />;
     }
 
     if (shape === "oval") {
-      return (
-        <Ellipse
-          x={width / 2}
-          y={height / 2}
-          radiusX={width / 2}
-          radiusY={height / 2}
-          fill={fillColor}
-          stroke={strokeColor}
-          strokeWidth={strokeWidth}
-        />
-      );
+      return <Ellipse x={width / 2} y={height / 2} radiusX={width / 2} radiusY={height / 2} {...commonProps} />;
     }
 
     return null;
@@ -169,23 +221,26 @@ export function TableShape({
 
   return (
     <Group
+      id={id}
       ref={groupRef}
       x={x}
       y={y}
       rotation={rotation}
       draggable={draggable}
-      dragBoundFunc={draggable ? dragBoundFunc : undefined}
       onClick={handleClick}
       onTap={handleClick}
       onDragStart={handleDragStart}
+      onDragMove={handleDragMove}
       onDragEnd={handleDragEnd}
+      onTransformEnd={handleTransformEnd}
     >
       {renderShape()}
       <Text
         text={tableIdentifier}
         fontSize={12}
-        fontFamily="Geist Sans, sans-serif"
-        fill="#333333"
+        fontFamily="Inter, sans-serif"
+        fontStyle="bold"
+        fill="#374151"
         width={width}
         height={height}
         align="center"
@@ -195,9 +250,9 @@ export function TableShape({
       <Text
         text={`${capacity}`}
         fontSize={10}
-        fontFamily="Geist Sans, sans-serif"
-        fill="#666666"
-        y={height - 16}
+        fontFamily="Inter, sans-serif"
+        fill="#6b7280"
+        y={height - 18}
         width={width}
         align="center"
         listening={false}

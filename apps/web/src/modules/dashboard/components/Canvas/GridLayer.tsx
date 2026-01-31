@@ -1,6 +1,6 @@
 "use client";
 
-import { Line, Rect } from "react-konva";
+import { Circle } from "react-konva";
 import { useCanvasStore } from "@/stores/canvas-store";
 
 interface GridLayerProps {
@@ -9,47 +9,31 @@ interface GridLayerProps {
 }
 
 export function GridLayer({ width, height }: GridLayerProps) {
-  const { gridSize, borders, currentFloorId } = useCanvasStore();
+  const { gridSize } = useCanvasStore();
 
-  // Get border for current floor
-  const border = borders.find((b) => b.floorId === currentFloorId);
+  const dots: React.ReactNode[] = [];
 
-  // If no border, don't show grid
-  if (!border) return null;
+  // Always show grid across entire canvas - use larger bounds to ensure visibility
+  const startX = 0;
+  const endX = Math.max(width, 3000);
+  const startY = 0;
+  const endY = Math.max(height, 2500);
 
-  const lines: React.ReactNode[] = [];
-
-  // Calculate grid bounds based on border
-  const startX = border.x;
-  const endX = border.x + border.width;
-  const startY = border.y;
-  const endY = border.y + border.height;
-
-  // Vertical lines within border
+  // Create subtle dot pattern across entire canvas
   for (let x = startX; x <= endX; x += gridSize) {
-    lines.push(
-      <Line
-        key={`v-${x}`}
-        points={[x, startY, x, endY]}
-        stroke="#e5e5e5"
-        strokeWidth={1}
-        listening={false}
-      />
-    );
+    for (let y = startY; y <= endY; y += gridSize) {
+      dots.push(
+        <Circle
+          key={`dot-${x}-${y}`}
+          x={x}
+          y={y}
+          radius={1.2}
+          fill="rgba(0, 0, 0, 0.08)"
+          listening={false}
+        />
+      );
+    }
   }
 
-  // Horizontal lines within border
-  for (let y = startY; y <= endY; y += gridSize) {
-    lines.push(
-      <Line
-        key={`h-${y}`}
-        points={[startX, y, endX, y]}
-        stroke="#e5e5e5"
-        strokeWidth={1}
-        listening={false}
-      />
-    );
-  }
-
-  return <>{lines}</>;
+  return <>{dots}</>;
 }
