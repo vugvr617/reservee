@@ -22,8 +22,7 @@ const SHORTCUTS = [
     shortcuts: [
       { keys: ["V"], description: "Select tool" },
       { keys: ["H"], description: "Pan tool" },
-      { keys: ["B"], description: "Border tool" },
-      { keys: ["W"], description: "Wall tool" },
+      { keys: ["B"], description: "Boundary tool" },
       { keys: ["T"], description: "Table tool" },
     ],
   },

@@ -3,10 +3,10 @@ export const DEFAULT_CANVAS_WIDTH = 1200;
 export const DEFAULT_CANVAS_HEIGHT = 800;
 
 export const DEFAULT_TABLE_SIZES = {
-  square: { width: 80, height: 80 },
-  round: { width: 80, height: 80 },
-  rectangular: { width: 120, height: 80 },
-  oval: { width: 120, height: 80 },
+  square: { width: 80, height: 80, minCapacity: 1, maxCapacity: 4 },
+  round: { width: 80, height: 80, minCapacity: 1, maxCapacity: 4 },
+  rectangular: { width: 120, height: 80, minCapacity: 2, maxCapacity: 6 },
+  oval: { width: 120, height: 80, minCapacity: 2, maxCapacity: 6 },
 } as const;
 
 export const TABLE_STATUS_COLORS = {

@@ -60,24 +60,23 @@ export interface UpdateTableInput {
   maxCapacity?: number;
 }
 
-export type Tool = "select" | "table" | "pan" | "wall" | "border";
+// Simplified tools - no wall
+export type Tool = "select" | "table" | "pan" | "border";
 export type TableShape = "square" | "round" | "rectangular" | "oval";
-export type WallType = "external" | "internal" | "fence";
 
 export interface Position {
   x: number;
   y: number;
 }
 
-export interface Wall {
+export interface Zone {
   id: string;
-  floorId: string;
-  type: WallType;
-  startX: number;
-  startY: number;
-  endX: number;
-  endY: number;
-  thickness: number;
+  label: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color?: string;
 }
 
 export interface Border {
@@ -89,4 +88,6 @@ export interface Border {
   height: number;
   strokeColor: string;
   strokeWidth: number;
+  zones?: Zone[];
 }
+
