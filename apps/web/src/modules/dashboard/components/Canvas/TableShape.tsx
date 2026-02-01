@@ -59,7 +59,7 @@ export function TableShape({
 
   // Enhanced stroke colors for hover and selected states
   const strokeColor = isSelected
-    ? "#84cc16" // Lime green when selected
+    ? "#22c55e" // Lime green when selected
     : isHovered
     ? "#3b82f6" // Blue on hover
     : "#6b7280"; // Gray default

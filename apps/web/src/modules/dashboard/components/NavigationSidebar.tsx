@@ -31,7 +31,7 @@ export function NavigationSidebar() {
       {/* Logo */}
       <div className="px-6 py-6 border-b border-gray-200 relative">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-lime-500 rounded-lg flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center shrink-0">
             <span className="text-white font-bold text-lg">R</span>
           </div>
           {!isCollapsed && (

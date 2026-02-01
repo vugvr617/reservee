@@ -1,12 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Calendar, Clock, X, Edit2, CheckCircle2, Phone, Users, MapPin, Copy, ExternalLink } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Clock, X, Edit2, CheckCircle2, Phone, Users, MapPin, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -39,7 +45,6 @@ interface GuestListPanelProps {
 }
 
 type ReservationStatus = "upcoming" | "seated" | "completed" | "cancelled";
-type FilterType = "today" | "upcoming" | "past";
 
 interface Reservation {
   id: number;
@@ -57,7 +62,8 @@ interface Reservation {
 
 export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
-  const [filter, setFilter] = useState<FilterType>("today");
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date(2026, 1, 1)); // Feb 1, 2026
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isNewReservationOpen, setIsNewReservationOpen] = useState(false);
 
@@ -139,23 +145,19 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
     },
   ];
 
-  // Filter reservations based on selected filter
+  // Format selected date to YYYY-MM-DD for comparison
+  const formatDateToISO = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Filter reservations based on selected date
   const getFilteredReservations = () => {
-    const today = "2026-02-01"; // Using current date from system
+    const dateStr = formatDateToISO(selectedDate);
 
-    let filtered = allReservations;
-
-    switch (filter) {
-      case "today":
-        filtered = allReservations.filter(r => r.date === today && r.status !== "completed" && r.status !== "cancelled");
-        break;
-      case "upcoming":
-        filtered = allReservations.filter(r => r.date > today && r.status === "upcoming");
-        break;
-      case "past":
-        filtered = allReservations.filter(r => r.status === "completed" || r.status === "cancelled");
-        break;
-    }
+    let filtered = allReservations.filter(r => r.date === dateStr);
 
     // Apply search filter
     if (searchQuery) {
@@ -183,7 +185,7 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
         );
       case "seated":
         return (
-          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs gap-1 px-2 py-0.5">
+          <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 text-xs gap-1 px-2 py-0.5">
             <CheckCircle2 className="h-3 w-3" />
             Seated
           </Badge>
@@ -267,7 +269,7 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
               <h2 className="font-semibold text-gray-900">Reservations</h2>
               <Dialog open={isNewReservationOpen} onOpenChange={setIsNewReservationOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" className="h-8 bg-lime-500 hover:bg-lime-600 text-white gap-1.5 shadow-md rounded-full px-4">
+                  <Button size="sm" className="h-8 bg-green-500 hover:bg-green-600 text-white gap-1.5 shadow-md rounded-full px-4">
                     <Plus className="h-3.5 w-3.5" />
                     New Reservation
                   </Button>
@@ -383,7 +385,7 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
                   <div className="flex gap-3 pt-2">
                     <Button
                       onClick={handleCreateReservation}
-                      className="flex-1 bg-lime-500 hover:bg-lime-600 text-white gap-2"
+                      className="flex-1 bg-green-500 hover:bg-green-600 text-white gap-2"
                     >
                       <Plus className="h-4 w-4" />
                       Create Reservation
@@ -399,13 +401,10 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
               </DialogContent>
             </Dialog>
             </div>
-            <div className="px-4 pt-2">
-              <p className="text-xs text-gray-500">Sat, Feb 1, 2026</p>
-            </div>
           </div>
 
           {/* Main Content */}
-          <div className="p-4 space-y-4 flex-1 overflow-y-auto">
+          <div className="p-4 space-y-3 flex-1 overflow-y-auto">
                 {/* Search */}
                 <div>
                   <Input
@@ -417,48 +416,36 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
                   />
                 </div>
 
-                {/* Filter Chips - Segmented Control with smooth transitions */}
-                <div className="inline-flex p-1 bg-gray-100 rounded-lg relative">
-                  <button
-                    onClick={() => setFilter("today")}
-                    className={`relative z-10 px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
-                      filter === "today"
-                        ? "text-gray-900"
-                        : "text-gray-600 hover:text-gray-900"
-                    }`}
-                  >
-                    {filter === "today" && (
-                      <div className="absolute inset-0 bg-white shadow-sm rounded-md -z-10 transition-all duration-200" />
-                    )}
-                    Today
-                  </button>
-                  <button
-                    onClick={() => setFilter("upcoming")}
-                    className={`relative z-10 px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
-                      filter === "upcoming"
-                        ? "text-gray-900"
-                        : "text-gray-600 hover:text-gray-900"
-                    }`}
-                  >
-                    {filter === "upcoming" && (
-                      <div className="absolute inset-0 bg-white shadow-sm rounded-md -z-10 transition-all duration-200" />
-                    )}
-                    Upcoming
-                  </button>
-                  <button
-                    onClick={() => setFilter("past")}
-                    className={`relative z-10 px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
-                      filter === "past"
-                        ? "text-gray-900"
-                        : "text-gray-600 hover:text-gray-900"
-                    }`}
-                  >
-                    {filter === "past" && (
-                      <div className="absolute inset-0 bg-white shadow-sm rounded-md -z-10 transition-all duration-200" />
-                    )}
-                    Past
-                  </button>
-                </div>
+                {/* Date Picker */}
+                <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal h-9 text-sm"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4 text-gray-400" />
+                      {selectedDate.toLocaleDateString('en-US', {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={(date) => {
+                        if (date) {
+                          setSelectedDate(date);
+                          setCalendarOpen(false);
+                        }
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
 
                 {/* Guest List with Timeline */}
                 <div className="space-y-2.5 relative">
@@ -472,12 +459,12 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
                       <p className="text-sm">No reservations found</p>
                     </div>
                   ) : (
-                    filteredReservations.map((reservation, index) => (
+                    filteredReservations.map((reservation) => (
                       <div key={reservation.id} className="relative pl-6">
                         {/* Timeline dot - aligned with the vertical line */}
                         <div className="absolute left-2 top-3.5 z-10 -translate-x-1/2">
                           <div className={`w-2 h-2 rounded-full ${getStatusColor(reservation.status)} ring-4 ring-white transition-all ${
-                            selectedReservation?.id === reservation.id ? 'scale-125 ring-lime-100' : ''
+                            selectedReservation?.id === reservation.id ? 'scale-125 ring-green-100' : ''
                           }`} />
                         </div>
 
@@ -486,7 +473,7 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
                           onClick={() => setSelectedReservation(reservation)}
                           className={`p-3 bg-white rounded-2xl border cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 ${
                             selectedReservation?.id === reservation.id
-                              ? "border-lime-500 shadow-md ring-2 ring-lime-100 bg-lime-50/30"
+                              ? "border-green-500 shadow-md ring-2 ring-green-100 bg-green-50/30"
                               : "border-gray-200 shadow-sm hover:border-gray-300"
                           }`}
                         >
@@ -549,7 +536,7 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
                 </div>
 
                 {/* Table Info - Prominent */}
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white rounded-lg text-sm font-medium">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-gray-700 border border-gray-200 rounded-lg text-sm font-medium">
                   <MapPin className="h-3.5 w-3.5" />
                   {selectedReservation.table} · {selectedReservation.floor}
                   {selectedReservation.tableCapacity && (

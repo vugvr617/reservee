@@ -73,7 +73,7 @@ export default function Step1OwnerInfo({ onNext, initialData }: Step1OwnerInfoPr
               placeholder="Jane Smith"
               value={formData.managerName}
               onChange={(e) => handleChange("managerName", e.target.value)}
-              className="pl-10 h-12 bg-white border-gray-200 rounded-xl focus:border-lime-400 focus:ring-lime-400/20"
+              className="pl-10 h-12 bg-white border-gray-200 rounded-xl focus:border-green-400 focus:ring-green-400/20"
               required
             />
           </div>
@@ -95,7 +95,7 @@ export default function Step1OwnerInfo({ onNext, initialData }: Step1OwnerInfoPr
               placeholder="manager@restaurant.com"
               value={formData.managerEmail}
               onChange={(e) => handleChange("managerEmail", e.target.value)}
-              className="pl-10 h-12 bg-white border-gray-200 rounded-xl focus:border-lime-400 focus:ring-lime-400/20"
+              className="pl-10 h-12 bg-white border-gray-200 rounded-xl focus:border-green-400 focus:ring-green-400/20"
               required
             />
           </div>
@@ -117,7 +117,7 @@ export default function Step1OwnerInfo({ onNext, initialData }: Step1OwnerInfoPr
               placeholder="+1 (555) 123-4567"
               value={formData.managerPhone}
               onChange={(e) => handleChange("managerPhone", e.target.value)}
-              className="pl-10 h-12 bg-white border-gray-200 rounded-xl focus:border-lime-400 focus:ring-lime-400/20"
+              className="pl-10 h-12 bg-white border-gray-200 rounded-xl focus:border-green-400 focus:ring-green-400/20"
               required
             />
           </div>
@@ -139,7 +139,7 @@ export default function Step1OwnerInfo({ onNext, initialData }: Step1OwnerInfoPr
               placeholder="The Garden Restaurant"
               value={formData.venueName}
               onChange={(e) => handleChange("venueName", e.target.value)}
-              className="pl-10 h-12 bg-white border-gray-200 rounded-xl focus:border-lime-400 focus:ring-lime-400/20"
+              className="pl-10 h-12 bg-white border-gray-200 rounded-xl focus:border-green-400 focus:ring-green-400/20"
               required
             />
           </div>
@@ -168,7 +168,7 @@ export default function Step1OwnerInfo({ onNext, initialData }: Step1OwnerInfoPr
                 placeholder="123 Main Street"
                 value={formData.address}
                 onChange={(e) => handleChange("address", e.target.value)}
-                className="h-12 bg-white border-gray-200 rounded-xl focus:border-lime-400 focus:ring-lime-400/20"
+                className="h-12 bg-white border-gray-200 rounded-xl focus:border-green-400 focus:ring-green-400/20"
                 required
               />
             </div>
@@ -206,11 +206,11 @@ export default function Step1OwnerInfo({ onNext, initialData }: Step1OwnerInfoPr
         </div>
 
         {/* Info card */}
-        <div className="bg-lime-50 border border-lime-200 rounded-xl p-4">
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
           <div className="flex gap-3">
             <div className="shrink-0">
-              <div className="w-8 h-8 bg-lime-100 rounded-lg flex items-center justify-center">
-                <span className="text-lime-600 text-sm">💡</span>
+              <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                <span className="text-green-600 text-sm">💡</span>
               </div>
             </div>
             <div className="flex-1 text-sm">
@@ -231,7 +231,7 @@ export default function Step1OwnerInfo({ onNext, initialData }: Step1OwnerInfoPr
         <Button
           type="submit"
           disabled={isLoading}
-          className="w-full h-12 bg-black hover:bg-gray-900 text-white rounded-xl text-base font-medium shadow-lg shadow-lime-400/10 hover:shadow-lime-400/20 transition-all disabled:opacity-50"
+          className="w-full h-12 bg-black hover:bg-gray-900 text-white rounded-xl text-base font-medium shadow-lg shadow-green-400/10 hover:shadow-green-400/20 transition-all disabled:opacity-50"
         >
           {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Continue"}
         </Button>

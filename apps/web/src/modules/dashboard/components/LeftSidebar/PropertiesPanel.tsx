@@ -243,7 +243,7 @@ export function PropertiesPanel() {
         <Button
           onClick={handleSave}
           disabled={isSaving}
-          className="w-full h-10 bg-lime-500 hover:bg-lime-600 text-white font-medium"
+          className="w-full h-10 bg-green-500 hover:bg-green-600 text-white font-medium"
         >
           {isSaving ? "Saving..." : "Save Changes"}
         </Button>

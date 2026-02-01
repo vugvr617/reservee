@@ -12,7 +12,7 @@ export const DEFAULT_TABLE_SIZES = {
 export const TABLE_STATUS_COLORS = {
   available: "#f5f5f5",
   occupied: "#ff9800",
-  reserved: "#84cc16",
+  reserved: "#22c55e",
 } as const;
 
 export const ZOOM_STEP = 0.1;

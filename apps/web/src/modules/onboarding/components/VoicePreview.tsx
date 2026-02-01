@@ -78,7 +78,7 @@ export default function VoicePreview({
       className={`h-8 px-3 rounded-lg font-medium transition-all text-xs flex items-center gap-1.5 ${
         isPreviewing
           ? "bg-red-500 hover:bg-red-600 text-white"
-          : "bg-lime-400 hover:bg-lime-500 text-black"
+          : "bg-green-400 hover:bg-green-500 text-black"
       } disabled:opacity-50 disabled:cursor-not-allowed`}
     >
       {!isReady ? (

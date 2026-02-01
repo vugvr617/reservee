@@ -76,7 +76,7 @@ export function BorderShape({
         y={y}
         width={width}
         height={height}
-        stroke={isSelected ? "#84cc16" : "#6b7280"}
+        stroke={isSelected ? "#22c55e" : "#6b7280"}
         strokeWidth={isSelected ? 4 : 3}
         fill="transparent"
         cornerRadius={8}

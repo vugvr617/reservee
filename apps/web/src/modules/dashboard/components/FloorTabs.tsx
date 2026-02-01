@@ -91,7 +91,7 @@ export function FloorTabs({ venueId, onEditClick }: FloorTabsProps) {
                 variant={isActive ? "default" : "outline"}
                 className={`px-3 py-1.5 cursor-pointer transition-colors ${
                   isActive
-                    ? "bg-lime-500 hover:bg-lime-600 border-lime-500"
+                    ? "bg-green-500 hover:bg-green-600 border-green-500"
                     : "hover:bg-gray-50"
                 }`}
               >
@@ -172,7 +172,7 @@ export function FloorTabs({ venueId, onEditClick }: FloorTabsProps) {
             <Button
               size="sm"
               onClick={handleCreateFloor}
-              className="bg-lime-500 hover:bg-lime-600 text-white"
+              className="bg-green-500 hover:bg-green-600 text-white"
             >
               Add
             </Button>
@@ -195,7 +195,7 @@ export function FloorTabs({ venueId, onEditClick }: FloorTabsProps) {
         <Button
           onClick={onEditClick}
           size="sm"
-          className="bg-lime-500 hover:bg-lime-600 text-white gap-2"
+          className="bg-green-500 hover:bg-green-600 text-white gap-2"
         >
           <Edit className="h-4 w-4" />
           Edit Floor Plan
