@@ -112,10 +112,10 @@ export async function updateFloor(floorId: string, updates: UpdateFloorInput) {
 
 export async function deleteFloor(floorId: string) {
   try {
-    // Soft delete by setting is_active to false
+    // Hard delete the floor
     const { error } = await supabase
       .from("floors")
-      .update({ is_active: false })
+      .delete()
       .eq("id", floorId);
 
     if (error) throw error;
