@@ -22,7 +22,7 @@ export function DashboardLayout({
   initialFloors,
   initialTables,
 }: DashboardLayoutProps) {
-  const { setFloors, setTables, setCurrentFloor, currentFloorId, setBorders } = useCanvasStore();
+  const { setFloors, setTables, setCurrentFloor, currentFloorId, setBorders, selectTable } = useCanvasStore();
   const [isEditMode, setIsEditMode] = useState(false);
   const [isGuestPanelCollapsed, setIsGuestPanelCollapsed] = useState(false);
 
@@ -65,7 +65,7 @@ export function DashboardLayout({
   }, [initialFloors, initialTables, setFloors, setTables, setBorders, setCurrentFloor, currentFloorId]);
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen w-screen bg-gray-50 overflow-hidden">
       {/* Left Navigation Sidebar */}
       <NavigationSidebar />
 
@@ -135,7 +135,10 @@ export function DashboardLayout({
         {/* Edit Mode Modal */}
         <EditModeModal
           isOpen={isEditMode}
-          onClose={() => setIsEditMode(false)}
+          onClose={() => {
+            selectTable(null);
+            setIsEditMode(false);
+          }}
           venueId={venueId}
         />
       </div>

@@ -32,6 +32,7 @@ interface CanvasStore {
   // Tables
   tables: CanvasTable[];
   selectedTableId: string | null;
+  dirtyTableIds: Set<string>; // Track tables with unsaved changes
 
   // Borders
   borders: Border[];
@@ -68,6 +69,9 @@ interface CanvasStore {
   updateTable: (id: string, updates: Partial<CanvasTable>) => void;
   deleteTable: (id: string) => void;
   selectTable: (id: string | null) => void;
+  markTableDirty: (id: string) => void;
+  clearDirtyTables: () => void;
+  getDirtyTables: () => CanvasTable[];
 
   // Border Actions
   setBorders: (borders: Border[]) => void;
@@ -105,6 +109,7 @@ const initialState = {
   floors: [],
   tables: [],
   selectedTableId: null,
+  dirtyTableIds: new Set<string>(),
   borders: [],
   selectedBorderId: null,
   isDrawingBorder: false,
@@ -175,6 +180,20 @@ export const useCanvasStore = create<CanvasStore>((set) => ({
     })),
 
   selectTable: (id) => set({ selectedTableId: id, selectedBorderId: null }),
+
+  markTableDirty: (id) =>
+    set((state) => {
+      const newDirtyTableIds = new Set(state.dirtyTableIds);
+      newDirtyTableIds.add(id);
+      return { dirtyTableIds: newDirtyTableIds };
+    }),
+
+  clearDirtyTables: () => set({ dirtyTableIds: new Set() }),
+
+  getDirtyTables: () => {
+    const state = useCanvasStore.getState();
+    return state.tables.filter((table) => state.dirtyTableIds.has(table.id));
+  },
 
   // Border actions
   setBorders: (borders) => set({ borders }),

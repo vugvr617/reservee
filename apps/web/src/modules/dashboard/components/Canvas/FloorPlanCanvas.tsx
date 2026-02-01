@@ -342,10 +342,10 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
     const venueTables = tables.filter(t => venueFloorIds.includes(t.floor_id));
     let maxTableNum = 0;
     venueTables.forEach(t => {
-      const match = t.table_identifier.match(/^T-(\d+)$/);
+      const match = t.table_identifier.match(/^Table (\d+)$/);
       if (match) maxTableNum = Math.max(maxTableNum, parseInt(match[1], 10));
     });
-    const tableIdentifier = `T-${maxTableNum + 1}`;
+    const tableIdentifier = `Table ${maxTableNum + 1}`;
 
     try {
       const result = await createTable({
@@ -587,6 +587,8 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
               anchorStroke="#84cc16"
               anchorFill="#ffffff"
               anchorSize={8}
+              rotateEnabled={false}
+              enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}
             />
           </Layer>
         )}

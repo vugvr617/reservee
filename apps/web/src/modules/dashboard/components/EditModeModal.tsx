@@ -1,10 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ToolPanel } from "./LeftSidebar/ToolPanel";
 import { PropertiesPanel } from "./LeftSidebar/PropertiesPanel";
 import { FloorPlanCanvas } from "./Canvas/FloorPlanCanvas";
+import { useCanvasStore } from "@/stores/canvas-store";
+import { updateTable } from "@/modules/dashboard/actions";
+import { toast } from "sonner";
 
 interface EditModeModalProps {
   isOpen: boolean;
@@ -13,7 +17,44 @@ interface EditModeModalProps {
 }
 
 export function EditModeModal({ isOpen, onClose, venueId }: EditModeModalProps) {
+  const { getDirtyTables, clearDirtyTables } = useCanvasStore();
+  const [isSaving, setIsSaving] = useState(false);
+
   if (!isOpen) return null;
+
+  const handleSaveChanges = async () => {
+    const dirtyTables = getDirtyTables();
+
+    if (dirtyTables.length === 0) {
+      onClose();
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      // Save all dirty tables in parallel
+      const savePromises = dirtyTables.map((table) =>
+        updateTable(table.id, {
+          positionX: table.position_x,
+          positionY: table.position_y,
+          width: table.width,
+          height: table.height,
+        })
+      );
+
+      await Promise.all(savePromises);
+
+      clearDirtyTables();
+      toast.success(`Saved changes to ${dirtyTables.length} table${dirtyTables.length > 1 ? 's' : ''}`);
+      onClose();
+    } catch (error) {
+      console.error("Failed to save changes:", error);
+      toast.error("Failed to save changes");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-8">
@@ -37,7 +78,7 @@ export function EditModeModal({ isOpen, onClose, venueId }: EditModeModalProps) 
           </aside>
 
           {/* Canvas Area */}
-          <main className="flex-1 relative bg-white min-w-0 max-w-[800px] mx-auto">
+          <main className="flex-1 relative bg-white min-w-0">
             <FloorPlanCanvas readOnly={false} />
           </main>
 
@@ -52,15 +93,17 @@ export function EditModeModal({ isOpen, onClose, venueId }: EditModeModalProps) 
           <Button
             variant="ghost"
             onClick={onClose}
+            disabled={isSaving}
             className="text-gray-700"
           >
             Cancel
           </Button>
           <Button
-            onClick={onClose}
+            onClick={handleSaveChanges}
+            disabled={isSaving}
             className="bg-lime-500 hover:bg-lime-600 text-white"
           >
-            Save Changes
+            {isSaving ? "Saving..." : "Save Changes"}
           </Button>
         </div>
       </div>

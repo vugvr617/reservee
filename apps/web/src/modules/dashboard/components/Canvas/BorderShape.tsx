@@ -69,29 +69,6 @@ export function BorderShape({
 
   return (
     <Group>
-      {/* Background floor with subtle texture */}
-      <Rect
-        x={x}
-        y={y}
-        width={width}
-        height={height}
-        fill="#f8f7f4"
-        cornerRadius={8}
-        listening={false}
-      />
-
-      {/* Subtle inner shadow effect */}
-      <Rect
-        x={x}
-        y={y}
-        width={width}
-        height={height}
-        stroke="rgba(0, 0, 0, 0.03)"
-        strokeWidth={20}
-        cornerRadius={8}
-        listening={false}
-      />
-
       {/* Main border outline (wall) */}
       <Rect
         id={id}

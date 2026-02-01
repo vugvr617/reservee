@@ -248,6 +248,7 @@ export async function updateTable(tableId: string, updates: UpdateTableInput) {
     if (updates.rotation !== undefined) updateData.rotation = updates.rotation;
     if (updates.minCapacity !== undefined) updateData.min_capacity = updates.minCapacity;
     if (updates.maxCapacity !== undefined) updateData.max_capacity = updates.maxCapacity;
+    if (updates.notes !== undefined) updateData.notes = updates.notes;
 
     const { data, error } = await supabase
       .from("tables")

@@ -1,248 +1,190 @@
-import React, { useEffect, useState } from "react";
-import { AnimatePresence, motion, MotionConfig } from "framer-motion";
-import { ChevronDownIcon, X } from "lucide-react";
+"use client"
 
-type TSelectData = {
-  id: string;
-  label: string;
-  value: string;
-  description?: string;
-  icon?: string;
-  disabled?: boolean;
-  custom?: React.ReactNode;
-  languages?: string[]; // Array of language flag emojis
-};
+import * as React from "react"
+import * as SelectPrimitive from "@radix-ui/react-select"
+import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
 
-type SelectProps = {
-  data?: TSelectData[];
-  onChange?: (value: string) => void;
-  defaultValue?: string;
-};
+import { cn } from "@/lib/utils"
 
-const Select = ({ data, defaultValue, onChange }: SelectProps) => {
-  const [open, setOpen] = React.useState(false);
-  const [selected, setSelected] = useState<TSelectData | undefined>(undefined);
+function Select({
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.Root>) {
+  return <SelectPrimitive.Root data-slot="select" {...props} />
+}
 
-  useEffect(() => {
-    if (defaultValue) {
-      const item = data?.find((i) => i.value === defaultValue);
-      if (item) {
-        setSelected(item);
-      }
-    } else {
-      setSelected(data?.[0]);
-    }
-  }, [defaultValue, data]);
+function SelectGroup({
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.Group>) {
+  return <SelectPrimitive.Group data-slot="select-group" {...props} />
+}
 
-  const onSelect = (value: string) => {
-    const item = data?.find((i) => i.value === value);
-    setSelected(item as TSelectData);
-    setOpen(false);
-    onChange?.(value);
-  };
+function SelectValue({
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.Value>) {
+  return <SelectPrimitive.Value data-slot="select-value" {...props} />
+}
 
-  const handleTriggerClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setOpen(true);
-  };
-
+function SelectTrigger({
+  className,
+  size = "default",
+  children,
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
+  size?: "sm" | "default"
+}) {
   return (
-    <div className="relative w-full">
-      {/* Trigger - Always visible */}
-      <div
-        onClick={handleTriggerClick}
-        className="overflow-hidden rounded-[30px] border border-input bg-background shadow-sm w-full cursor-pointer hover:border-gray-300 transition-colors"
-      >
-        <SelectItem item={selected} />
-      </div>
-
-      {/* Backdrop + Dropdown */}
-      <AnimatePresence>
-        {open && (
-          <>
-            {/* Backdrop to prevent clicks behind */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setOpen(false);
-              }}
-              className="fixed inset-0 z-40 bg-transparent cursor-default"
-            />
-
-            {/* Dropdown - Absolute positioned */}
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-              onClick={(e) => e.stopPropagation()}
-              className="absolute top-0 left-0 right-0 z-50 overflow-visible rounded-[20px] border border-input bg-background shadow-xl"
-            >
-              <Head setOpen={setOpen} />
-              <div className="w-full max-h-[400px] overflow-y-auto">
-                {data?.map((item, index) => (
-                  <SelectItem
-                    order={index.toString()}
-                    noDescription={false}
-                    key={item.id}
-                    item={item}
-                    onChange={onSelect}
-                  />
-                ))}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-};
-
-export default Select;
-
-const Head = ({ setOpen }: { setOpen: (open: boolean) => void }) => {
-  const handleClose = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setOpen(false);
-  };
-
-  return (
-    <motion.div
-      initial={{
-        opacity: 0,
-      }}
-      animate={{
-        opacity: 1,
-      }}
-      exit={{
-        opacity: 0,
-      }}
-      transition={{
-        delay: 0.1,
-      }}
-      layout
-      className="flex items-center justify-between p-4"
-    >
-      <motion.strong layout className="text-foreground">
-        Choose Voice
-      </motion.strong>
-      <button
-        type="button"
-        onClick={handleClose}
-        className="flex h-6 w-6 items-center justify-center rounded-full bg-secondary hover:bg-secondary/80 transition-colors"
-      >
-        <X className="text-secondary-foreground" size={12} />
-      </button>
-    </motion.div>
-  );
-};
-
-type SelectItemProps = {
-  item?: TSelectData;
-  noDescription?: boolean;
-  order?: string;
-  onChange?: (index: string) => void;
-};
-
-const animation = {
-  hidden: {
-    opacity: 0,
-    y: 10,
-  },
-  visible: (custom: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: {
-      delay: custom * 0.05,
-      duration: 0.3,
-    },
-  }),
-  exit: (custom: number) => ({
-    opacity: 0,
-    y: 10,
-    transition: {
-      delay: custom * 0.05,
-    },
-  }),
-};
-
-const SelectItem = ({
-  item,
-  noDescription = true,
-  order,
-  onChange,
-}: SelectItemProps) => {
-  const handleClick = (e: React.MouseEvent) => {
-    // Only handle clicks in dropdown list, not when used as trigger
-    if (!noDescription && onChange) {
-      e.preventDefault();
-      e.stopPropagation();
-      onChange(item?.value as string);
-    }
-  };
-
-  return (
-    <motion.div
-      className={`group flex ${!noDescription ? 'cursor-pointer' : ''} items-center justify-between gap-2 p-4 py-3 hover:bg-accent hover:text-accent-foreground transition-colors ${
-        noDescription && "!p-2"
-      }`}
-      variants={animation}
-      initial="hidden"
-      animate="visible"
-      exit="exit"
-      key={"voice-" + item?.id + "-order-" + order}
-      custom={order ? parseInt(order) : 0}
-      onClick={!noDescription ? handleClick : undefined}
-    >
-      <div className="flex items-center gap-3 flex-1">
-        <motion.div
-          layout
-          layoutId={`icon-${item?.id}`}
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-input bg-background shrink-0"
-        >
-          {item?.icon}
-        </motion.div>
-        <motion.div layout className="flex flex-col flex-1 min-w-0">
-          <motion.strong
-            layoutId={`label-${item?.id}`}
-            className="text-sm font-semibold text-foreground"
-          >
-            {item?.label}
-          </motion.strong>
-          {noDescription ? null : (
-            <>
-              <span className="text-xs text-muted-foreground line-clamp-2">
-                {item?.description}
-              </span>
-              {item?.languages && item.languages.length > 0 && (
-                <div className="flex items-center gap-1 mt-1">
-                  {item.languages.map((flag, idx) => (
-                    <span key={idx} className="text-sm">
-                      {flag}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </motion.div>
-      </div>
-      {noDescription ? (
-        <motion.div
-          layout
-          className="flex items-center justify-center gap-2 pr-3"
-        >
-          <ChevronDownIcon className="text-foreground" size={20} />
-        </motion.div>
-      ) : (
-        item?.custom
+    <SelectPrimitive.Trigger
+      data-slot="select-trigger"
+      data-size={size}
+      className={cn(
+        "border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 dark:hover:bg-input/50 flex w-fit items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:h-9 data-[size=sm]:h-8 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        className
       )}
-    </motion.div>
-  );
-};
+      {...props}
+    >
+      {children}
+      <SelectPrimitive.Icon asChild>
+        <ChevronDownIcon className="size-4 opacity-50" />
+      </SelectPrimitive.Icon>
+    </SelectPrimitive.Trigger>
+  )
+}
+
+function SelectContent({
+  className,
+  children,
+  position = "item-aligned",
+  align = "center",
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.Content>) {
+  return (
+    <SelectPrimitive.Portal>
+      <SelectPrimitive.Content
+        data-slot="select-content"
+        className={cn(
+          "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-50 max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border shadow-md",
+          position === "popper" &&
+            "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
+          className
+        )}
+        position={position}
+        align={align}
+        {...props}
+      >
+        <SelectScrollUpButton />
+        <SelectPrimitive.Viewport
+          className={cn(
+            "p-1",
+            position === "popper" &&
+              "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1"
+          )}
+        >
+          {children}
+        </SelectPrimitive.Viewport>
+        <SelectScrollDownButton />
+      </SelectPrimitive.Content>
+    </SelectPrimitive.Portal>
+  )
+}
+
+function SelectLabel({
+  className,
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.Label>) {
+  return (
+    <SelectPrimitive.Label
+      data-slot="select-label"
+      className={cn("text-muted-foreground px-2 py-1.5 text-xs", className)}
+      {...props}
+    />
+  )
+}
+
+function SelectItem({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.Item>) {
+  return (
+    <SelectPrimitive.Item
+      data-slot="select-item"
+      className={cn(
+        "focus:bg-accent focus:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+        className
+      )}
+      {...props}
+    >
+      <span
+        data-slot="select-item-indicator"
+        className="absolute right-2 flex size-3.5 items-center justify-center"
+      >
+        <SelectPrimitive.ItemIndicator>
+          <CheckIcon className="size-4" />
+        </SelectPrimitive.ItemIndicator>
+      </span>
+      <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+    </SelectPrimitive.Item>
+  )
+}
+
+function SelectSeparator({
+  className,
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.Separator>) {
+  return (
+    <SelectPrimitive.Separator
+      data-slot="select-separator"
+      className={cn("bg-border pointer-events-none -mx-1 my-1 h-px", className)}
+      {...props}
+    />
+  )
+}
+
+function SelectScrollUpButton({
+  className,
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.ScrollUpButton>) {
+  return (
+    <SelectPrimitive.ScrollUpButton
+      data-slot="select-scroll-up-button"
+      className={cn(
+        "flex cursor-default items-center justify-center py-1",
+        className
+      )}
+      {...props}
+    >
+      <ChevronUpIcon className="size-4" />
+    </SelectPrimitive.ScrollUpButton>
+  )
+}
+
+function SelectScrollDownButton({
+  className,
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.ScrollDownButton>) {
+  return (
+    <SelectPrimitive.ScrollDownButton
+      data-slot="select-scroll-down-button"
+      className={cn(
+        "flex cursor-default items-center justify-center py-1",
+        className
+      )}
+      {...props}
+    >
+      <ChevronDownIcon className="size-4" />
+    </SelectPrimitive.ScrollDownButton>
+  )
+}
+
+export {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectScrollDownButton,
+  SelectScrollUpButton,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+}

@@ -71,7 +71,7 @@ export function FloorTabs({ venueId }: { venueId: string }) {
   return (
     <div className="flex items-center gap-2 border-b border-gray-200 bg-white px-6 py-3">
       {/* Floor Tabs */}
-      <div className="flex items-center gap-2 flex-1 overflow-x-auto">
+      <div className="flex items-center gap-2 flex-1">
         {floors.map((floor) => {
           const isActive = floor.id === currentFloorId;
           const isEditing = editingFloorId === floor.id;
