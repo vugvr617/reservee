@@ -456,7 +456,7 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
   };
 
   return (
-    <div ref={containerRef} className="relative h-full w-full bg-gray-100 overflow-hidden">
+    <div ref={containerRef} className="relative h-full w-full bg-slate-50 overflow-hidden">
       {/* Instructions */}
       {!readOnly && currentTool === "border" && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
