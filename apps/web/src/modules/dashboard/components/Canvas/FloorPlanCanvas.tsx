@@ -476,7 +476,7 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
     <div ref={containerRef} className="relative h-full w-full bg-gray-100 overflow-hidden">
       {/* Instructions */}
       {!readOnly && currentTool === "border" && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-lime-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
           {!isDrawingBorder ? "Click and drag to draw the floor boundary" : "Release to finish"}
         </div>
       )}
@@ -488,7 +488,7 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
       )}
 
       {!readOnly && currentTool === "table" && hasBorder && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-lime-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
           Click inside the floor to add a table
         </div>
       )}
@@ -546,7 +546,7 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
               y={Math.min(tempBorderStart.y, mousePos.y)}
               width={Math.abs(mousePos.x - tempBorderStart.x)}
               height={Math.abs(mousePos.y - tempBorderStart.y)}
-              stroke="#84cc16"
+              stroke="#22c55e"
               strokeWidth={3}
               dash={[10, 5]}
               listening={false}
@@ -582,9 +582,9 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
           <Layer>
             <Transformer
               ref={transformerRef}
-              borderStroke="#84cc16"
+              borderStroke="#22c55e"
               borderStrokeWidth={2}
-              anchorStroke="#84cc16"
+              anchorStroke="#22c55e"
               anchorFill="#ffffff"
               anchorSize={8}
               rotateEnabled={false}

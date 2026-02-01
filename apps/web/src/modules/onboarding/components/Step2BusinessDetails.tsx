@@ -99,7 +99,7 @@ export default function Step2BusinessDetails({
                 className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
                   slot.closed
                     ? "bg-gray-50 border-gray-200"
-                    : "bg-white border-gray-200 hover:border-lime-200"
+                    : "bg-white border-gray-200 hover:border-green-200"
                 }`}
               >
                 <div className="w-28">
@@ -135,7 +135,7 @@ export default function Step2BusinessDetails({
                 <button
                   type="button"
                   onClick={() => toggleDayClosed(index)}
-                  className="ml-auto text-xs text-lime-600 hover:text-lime-700 font-medium"
+                  className="ml-auto text-xs text-green-600 hover:text-green-700 font-medium"
                 >
                   {slot.closed ? "Open" : "Mark Closed"}
                 </button>
@@ -163,7 +163,7 @@ export default function Step2BusinessDetails({
               placeholder="+1 (555) 987-6543"
               value={formData.fallbackPhone}
               onChange={(e) => handleChange("fallbackPhone", e.target.value)}
-              className="h-12 bg-white border-gray-200 rounded-xl focus:border-lime-400 focus:ring-lime-400/20"
+              className="h-12 bg-white border-gray-200 rounded-xl focus:border-green-400 focus:ring-green-400/20"
               required
             />
             <p className="text-xs text-gray-500">
@@ -192,7 +192,7 @@ export default function Step2BusinessDetails({
           <Button
             type="submit"
             disabled={isLoading}
-            className="flex-1 h-12 bg-black hover:bg-gray-900 text-white rounded-xl text-base font-medium shadow-lg shadow-lime-400/10 hover:shadow-lime-400/20 transition-all disabled:opacity-50"
+            className="flex-1 h-12 bg-black hover:bg-gray-900 text-white rounded-xl text-base font-medium shadow-lg shadow-green-400/10 hover:shadow-green-400/20 transition-all disabled:opacity-50"
           >
             {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Continue"}
           </Button>

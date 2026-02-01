@@ -22,7 +22,7 @@ export default function DashboardClient({
   if (isPending) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-lime-500" />
+        <Loader2 className="h-8 w-8 animate-spin text-green-500" />
       </div>
     );
   }
@@ -30,7 +30,7 @@ export default function DashboardClient({
   if (!session) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-lime-500" />
+        <Loader2 className="h-8 w-8 animate-spin text-green-500" />
       </div>
     );
   }

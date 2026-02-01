@@ -21,8 +21,8 @@ export default function VoiceCard({
         p-4 border-2 rounded-xl cursor-pointer transition-all
         ${
           isSelected
-            ? "border-lime-400 bg-lime-50"
-            : "border-gray-200 hover:border-lime-200 bg-white"
+            ? "border-green-400 bg-green-50"
+            : "border-gray-200 hover:border-green-200 bg-white"
         }
       `}
     >

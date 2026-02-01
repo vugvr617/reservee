@@ -1,5 +1,83 @@
 # Claude Development Guidelines
 
+## Color Palette
+
+All colors are defined as CSS variables in `globals.css`. Use the corresponding Tailwind semantic classes (e.g., `bg-primary`, `text-foreground`) when possible. For brand green accents, use Tailwind's `green-*` palette.
+
+### Primary Theme Colors
+| Token | Hex | Usage |
+|-------|-----|-------|
+| `--background` | `#f9fafb` | Page background (neutral white-gray) |
+| `--foreground` | `#374151` | Default text color |
+| `--primary` | `#22c55e` | Brand green — buttons, active states, CTAs |
+| `--primary-foreground` | `#ffffff` | Text on primary backgrounds |
+
+### Secondary & Accent Colors
+| Token | Hex | Usage |
+|-------|-----|-------|
+| `--secondary` | `#e0f2fe` | Secondary backgrounds (light blue tint) |
+| `--secondary-foreground` | `#4b5563` | Text on secondary backgrounds |
+| `--accent` | `#d1fae5` | Subtle green highlight backgrounds |
+| `--accent-foreground` | `#374151` | Text on accent backgrounds |
+
+### UI Component Colors
+| Token | Hex | Usage |
+|-------|-----|-------|
+| `--card` | `#ffffff` | Card backgrounds |
+| `--card-foreground` | `#374151` | Card text |
+| `--popover` | `#ffffff` | Popover/dropdown backgrounds |
+| `--popover-foreground` | `#374151` | Popover text |
+| `--muted` | `#f3f4f6` | Muted/disabled backgrounds |
+| `--muted-foreground` | `#6b7280` | Muted/placeholder text |
+
+### Utility & Form Colors
+| Token | Hex | Usage |
+|-------|-----|-------|
+| `--border` | `#e5e7eb` | Borders and dividers |
+| `--input` | `#e5e7eb` | Input borders |
+| `--ring` | `#22c55e` | Focus rings |
+
+### Status & Feedback Colors
+| Token | Hex | Usage |
+|-------|-----|-------|
+| `--destructive` | `#ef4444` | Error states, delete actions |
+| `--destructive-foreground` | `#ffffff` | Text on destructive backgrounds |
+
+### Rules
+- **Never use `lime-*`, `emerald-*`, or other green-adjacent Tailwind palettes** — only `green-*` for brand green
+- **Never use black borders** — no `border-black`, `border-gray-900`, or `border-[#000]`. Use `border-gray-200` or `border-gray-300` for borders
+- **Background must be neutral white-gray** — use `bg-gray-50` (#f9fafb) or `bg-white` for page/section backgrounds. Never use blue-tinted backgrounds like `#f0f8ff`
+- **For hardcoded hex values** (Konva canvas, inline styles), use `#22c55e` for brand green
+- **Prefer semantic Tailwind classes** (`bg-primary`, `text-muted-foreground`, `border-border`) over raw hex values
+- When you need green shades not covered by the CSS variables, use Tailwind's `green-*` palette (e.g., `green-50`, `green-100`, `green-600`)
+
+### Common usage
+
+```tsx
+// Primary buttons
+className="bg-green-500 hover:bg-green-600 text-white"
+
+// Focus rings on inputs
+className="focus:border-green-400 focus:ring-green-400/20"
+
+// Text links
+className="text-green-600 hover:text-green-700"
+
+// Icons
+className="text-green-500"
+
+// Subtle green backgrounds
+className="bg-green-50 border-green-200"
+
+// Canvas/Konva hex values
+stroke="#22c55e"
+
+// Using semantic tokens
+className="bg-primary text-primary-foreground"
+className="text-muted-foreground"
+className="border-border"
+```
+
 ## UI Components
 
 ### Overview
@@ -63,7 +141,7 @@ Customize shadcn components using:
 <Button
   variant="outline"
   size="sm"
-  className="bg-lime-500 hover:bg-lime-600"
+  className="bg-green-500 hover:bg-green-600"
 >
   Custom Button
 </Button>
@@ -164,3 +242,7 @@ if (deleteResult.success) {
   toast.success("Table deleted successfully");
 }
 ```
+
+## Build & Lint Rules
+
+- **Never run `next build` or `npm run build` at the end of a task** — the dev server handles incremental compilation. Running a full build is slow and unnecessary during development.

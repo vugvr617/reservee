@@ -100,7 +100,7 @@ export default function Step3AIReceptionist({
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 mb-2">
-          <Bot className="h-8 w-8 text-lime-500" />
+          <Bot className="h-8 w-8 text-green-500" />
           <h1 className="text-3xl font-semibold text-gray-900">
             AI Receptionist Setup
           </h1>
@@ -120,7 +120,7 @@ export default function Step3AIReceptionist({
 
           {isLoadingVoices ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-lime-500" />
+              <Loader2 className="h-8 w-8 animate-spin text-green-500" />
               <span className="ml-3 text-gray-500">Loading voices...</span>
             </div>
           ) : voices.length === 0 ? (
@@ -222,7 +222,7 @@ export default function Step3AIReceptionist({
             <Button
               type="submit"
               disabled={isSubmitting || !selectedVoice}
-              className="flex-1 h-12 bg-black hover:bg-gray-900 text-white rounded-xl text-base font-medium shadow-lg shadow-lime-400/10 hover:shadow-lime-400/20 transition-all disabled:opacity-50"
+              className="flex-1 h-12 bg-black hover:bg-gray-900 text-white rounded-xl text-base font-medium shadow-lg shadow-green-400/10 hover:shadow-green-400/20 transition-all disabled:opacity-50"
             >
               {isSubmitting ? (
                 <Loader2 className="h-5 w-5 animate-spin" />

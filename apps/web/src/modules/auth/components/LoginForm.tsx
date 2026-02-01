@@ -82,7 +82,7 @@ export default function LoginForm() {
               onChange={(e) => setEmail(e.target.value)}
               required
               disabled={isLoading}
-              className="pl-10 h-12 bg-white border-gray-200 rounded-xl focus:border-lime-400 focus:ring-lime-400/20"
+              className="pl-10 h-12 bg-white border-gray-200 rounded-xl focus:border-green-400 focus:ring-green-400/20"
             />
           </div>
         </div>
@@ -105,7 +105,7 @@ export default function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               required
               disabled={isLoading}
-              className="pl-10 h-12 bg-white border-gray-200 rounded-xl focus:border-lime-400 focus:ring-lime-400/20"
+              className="pl-10 h-12 bg-white border-gray-200 rounded-xl focus:border-green-400 focus:ring-green-400/20"
             />
           </div>
         </div>
@@ -118,7 +118,7 @@ export default function LoginForm() {
               checked={rememberMe}
               onCheckedChange={(checked) => setRememberMe(checked as boolean)}
               disabled={isLoading}
-              className="rounded border-gray-300 data-[state=checked]:bg-lime-500 data-[state=checked]:border-lime-500"
+              className="rounded border-gray-300 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
             />
             <Label
               htmlFor="remember"
@@ -129,7 +129,7 @@ export default function LoginForm() {
           </div>
           <Link
             href="/forgot-password"
-            className="text-sm text-lime-600 hover:text-lime-700 font-medium"
+            className="text-sm text-green-600 hover:text-green-700 font-medium"
           >
             Forgot Password?
           </Link>
@@ -139,7 +139,7 @@ export default function LoginForm() {
         <Button
           type="submit"
           disabled={isLoading}
-          className="w-full h-12 bg-black hover:bg-gray-900 text-white rounded-xl text-base font-medium shadow-lg shadow-lime-400/10 hover:shadow-lime-400/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full h-12 bg-black hover:bg-gray-900 text-white rounded-xl text-base font-medium shadow-lg shadow-green-400/10 hover:shadow-green-400/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isLoading ? "Signing in..." : "Sign in"}
         </Button>
@@ -151,7 +151,7 @@ export default function LoginForm() {
           Don&apos;t have an account?{" "}
           <Link
             href="/sign-up"
-            className="text-lime-600 font-medium hover:text-lime-700"
+            className="text-green-600 font-medium hover:text-green-700"
           >
             Sign up for free
           </Link>

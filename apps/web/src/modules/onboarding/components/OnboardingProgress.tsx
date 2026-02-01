@@ -23,7 +23,7 @@ export default function OnboardingProgress({
       </div>
       <div className="relative h-2 bg-gray-100 rounded-full overflow-hidden">
         <motion.div
-          className="absolute top-0 left-0 h-full bg-gradient-to-r from-lime-400 to-lime-500 rounded-full"
+          className="absolute top-0 left-0 h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full"
           initial={{ width: "0%" }}
           animate={{ width: `${(currentStep / totalSteps) * 100}%` }}
           transition={{ duration: 0.5, ease: "easeInOut" }}

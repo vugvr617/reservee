@@ -95,7 +95,7 @@ export default function SignUpForm() {
               onChange={(e) => setName(e.target.value)}
               required
               disabled={isLoading}
-              className="pl-10 h-12 bg-white border-gray-200 rounded-xl focus:border-lime-400 focus:ring-lime-400/20"
+              className="pl-10 h-12 bg-white border-gray-200 rounded-xl focus:border-green-400 focus:ring-green-400/20"
             />
           </div>
         </div>
@@ -115,7 +115,7 @@ export default function SignUpForm() {
               onChange={(e) => setEmail(e.target.value)}
               required
               disabled={isLoading}
-              className="pl-10 h-12 bg-white border-gray-200 rounded-xl focus:border-lime-400 focus:ring-lime-400/20"
+              className="pl-10 h-12 bg-white border-gray-200 rounded-xl focus:border-green-400 focus:ring-green-400/20"
             />
           </div>
         </div>
@@ -138,7 +138,7 @@ export default function SignUpForm() {
               onChange={(e) => setPassword(e.target.value)}
               required
               disabled={isLoading}
-              className="pl-10 h-12 bg-white border-gray-200 rounded-xl focus:border-lime-400 focus:ring-lime-400/20"
+              className="pl-10 h-12 bg-white border-gray-200 rounded-xl focus:border-green-400 focus:ring-green-400/20"
             />
           </div>
         </div>
@@ -161,7 +161,7 @@ export default function SignUpForm() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               disabled={isLoading}
-              className="pl-10 h-12 bg-white border-gray-200 rounded-xl focus:border-lime-400 focus:ring-lime-400/20"
+              className="pl-10 h-12 bg-white border-gray-200 rounded-xl focus:border-green-400 focus:ring-green-400/20"
             />
           </div>
         </div>
@@ -170,7 +170,7 @@ export default function SignUpForm() {
         <Button
           type="submit"
           disabled={isLoading}
-          className="w-full h-12 bg-black hover:bg-gray-900 text-white rounded-xl text-base font-medium shadow-lg shadow-lime-400/10 hover:shadow-lime-400/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full h-12 bg-black hover:bg-gray-900 text-white rounded-xl text-base font-medium shadow-lg shadow-green-400/10 hover:shadow-green-400/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isLoading ? "Creating account..." : "Create account"}
         </Button>
@@ -182,7 +182,7 @@ export default function SignUpForm() {
           Already have an account?{" "}
           <Link
             href="/login"
-            className="text-lime-600 font-medium hover:text-lime-700"
+            className="text-green-600 font-medium hover:text-green-700"
           >
             Sign in
           </Link>

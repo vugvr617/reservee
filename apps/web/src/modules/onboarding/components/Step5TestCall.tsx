@@ -70,7 +70,7 @@ export default function Step5TestCall({ onBack, onComplete, phoneNumber: initial
     <div className="space-y-8">
       {/* Header */}
       <div className="text-center space-y-3">
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-lime-400 to-emerald-500 rounded-2xl mb-2">
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-400 to-emerald-500 rounded-2xl mb-2">
           <Phone className="h-8 w-8 text-white" />
         </div>
         <h2 className="text-3xl font-bold text-gray-900">
@@ -129,7 +129,7 @@ export default function Step5TestCall({ onBack, onComplete, phoneNumber: initial
           {checklist.map((item) => (
             <label
               key={item.id}
-              className="flex items-start gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-lime-300 hover:bg-lime-50/50 cursor-pointer transition-all group"
+              className="flex items-start gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-green-300 hover:bg-green-50/50 cursor-pointer transition-all group"
             >
               <input
                 type="checkbox"
@@ -139,9 +139,9 @@ export default function Step5TestCall({ onBack, onComplete, phoneNumber: initial
               />
               <div className="mt-0.5">
                 {item.checked ? (
-                  <CheckCircle2 className="h-6 w-6 text-lime-500" />
+                  <CheckCircle2 className="h-6 w-6 text-green-500" />
                 ) : (
-                  <Circle className="h-6 w-6 text-gray-300 group-hover:text-lime-400 transition-colors" />
+                  <Circle className="h-6 w-6 text-gray-300 group-hover:text-green-400 transition-colors" />
                 )}
               </div>
               <span className={`text-base flex-1 ${item.checked ? 'text-gray-900 font-medium' : 'text-gray-600'}`}>
@@ -173,7 +173,7 @@ export default function Step5TestCall({ onBack, onComplete, phoneNumber: initial
         <Button
           onClick={handleComplete}
           disabled={!allChecked || isLoading}
-          className="flex-1 h-12 bg-black hover:bg-gray-900 text-white rounded-xl text-base font-medium shadow-lg shadow-lime-400/10 hover:shadow-lime-400/20 transition-all disabled:opacity-50"
+          className="flex-1 h-12 bg-black hover:bg-gray-900 text-white rounded-xl text-base font-medium shadow-lg shadow-green-400/10 hover:shadow-green-400/20 transition-all disabled:opacity-50"
         >
           {isLoading ? (
             <>

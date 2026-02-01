@@ -55,7 +55,7 @@ export function ToolPanel() {
                 size="sm"
                 onClick={() => setCurrentTool(tool.id)}
                 className={`justify-between ${
-                  isActive ? "bg-lime-500 text-white hover:bg-lime-600" : ""
+                  isActive ? "bg-green-500 text-white hover:bg-green-600" : ""
                 }`}
               >
                 <span className="flex items-center gap-2">
@@ -97,7 +97,7 @@ export function ToolPanel() {
                     setCurrentTool("table");
                   }}
                   className={`flex-col h-auto py-3 ${
-                    isActive ? "bg-lime-500 text-white hover:bg-lime-600" : ""
+                    isActive ? "bg-green-500 text-white hover:bg-green-600" : ""
                   }`}
                 >
                   <Icon className={`h-5 w-5 mb-1 ${shape.id === "round" || shape.id === "oval" ? "" : ""}`} />
@@ -119,7 +119,7 @@ export function ToolPanel() {
             type="checkbox"
             checked={snapToGrid}
             onChange={(e) => setSnapToGrid(e.target.checked)}
-            className="h-4 w-4 rounded border-gray-300 text-lime-500 focus:ring-lime-500"
+            className="h-4 w-4 rounded border-gray-300 text-green-500 focus:ring-green-500"
           />
           Snap to Grid
         </label>
