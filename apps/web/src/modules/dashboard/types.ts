@@ -58,6 +58,7 @@ export interface UpdateTableInput {
   rotation?: number;
   minCapacity?: number;
   maxCapacity?: number;
+  notes?: string;
 }
 
 // Simplified tools - no wall
