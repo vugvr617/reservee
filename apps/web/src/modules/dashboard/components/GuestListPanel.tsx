@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Calendar, Clock, X, Edit2, CheckCircle2, Phone, Users, MapPin } from "lucide-react";
+import { Plus, Calendar, Clock, X, Edit2, CheckCircle2, Phone, Users, MapPin, Copy, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +24,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 
@@ -45,6 +52,7 @@ interface Reservation {
   time: string;
   status: ReservationStatus;
   notes?: string;
+  tableCapacity?: number;
 }
 
 export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
@@ -65,7 +73,8 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
       guests: 6,
       time: "10:30 AM",
       status: "upcoming",
-      notes: "Window seat preferred"
+      notes: "Window seat preferred",
+      tableCapacity: 6
     },
     {
       id: 2,
@@ -77,6 +86,7 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
       guests: 4,
       time: "12:00 PM",
       status: "seated",
+      tableCapacity: 4
     },
     {
       id: 3,
@@ -88,7 +98,8 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
       guests: 2,
       time: "06:30 PM",
       status: "upcoming",
-      notes: "Anniversary dinner"
+      notes: "Anniversary dinner",
+      tableCapacity: 4
     },
     {
       id: 4,
@@ -100,6 +111,7 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
       guests: 8,
       time: "07:00 PM",
       status: "upcoming",
+      tableCapacity: 8
     },
     {
       id: 5,
@@ -111,6 +123,7 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
       guests: 4,
       time: "07:30 PM",
       status: "completed",
+      tableCapacity: 6
     },
     {
       id: 6,
@@ -122,6 +135,7 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
       guests: 2,
       time: "08:00 PM",
       status: "cancelled",
+      tableCapacity: 4
     },
   ];
 
@@ -204,6 +218,21 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
     }
   };
 
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} copied to clipboard`);
+  };
+
   const handleCreateReservation = () => {
     toast.success("Reservation created successfully");
     setIsNewReservationOpen(false);
@@ -214,9 +243,18 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
     setSelectedReservation(null);
   };
 
+  const handleMarkAsCompleted = (reservation: Reservation) => {
+    toast.success(`${reservation.name} marked as completed`);
+    setSelectedReservation(null);
+  };
+
   const handleCancelReservation = (reservation: Reservation) => {
     toast.success(`Reservation for ${reservation.name} cancelled`);
     setSelectedReservation(null);
+  };
+
+  const handleCall = (phone: string) => {
+    window.location.href = `tel:${phone}`;
   };
 
   return (
@@ -229,9 +267,9 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
               <h2 className="font-semibold text-gray-900">Reservations</h2>
               <Dialog open={isNewReservationOpen} onOpenChange={setIsNewReservationOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" className="bg-linear-to-r from-lime-500 to-lime-600 hover:from-lime-600 hover:to-lime-700 text-white gap-1.5 shadow-sm">
-                    <Plus className="h-4 w-4" />
-                    New
+                  <Button size="sm" className="h-8 bg-lime-500 hover:bg-lime-600 text-white gap-1.5 shadow-md rounded-full px-4">
+                    <Plus className="h-3.5 w-3.5" />
+                    New Reservation
                   </Button>
                 </DialogTrigger>
               <DialogContent className="sm:max-w-[500px]">
@@ -379,45 +417,54 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
                   />
                 </div>
 
-                {/* Filter Chips - Segmented Control */}
-                <div className="inline-flex p-1 bg-gray-100 rounded-lg">
+                {/* Filter Chips - Segmented Control with smooth transitions */}
+                <div className="inline-flex p-1 bg-gray-100 rounded-lg relative">
                   <button
                     onClick={() => setFilter("today")}
-                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+                    className={`relative z-10 px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
                       filter === "today"
-                        ? "bg-white text-gray-900 shadow-sm"
+                        ? "text-gray-900"
                         : "text-gray-600 hover:text-gray-900"
                     }`}
                   >
+                    {filter === "today" && (
+                      <div className="absolute inset-0 bg-white shadow-sm rounded-md -z-10 transition-all duration-200" />
+                    )}
                     Today
                   </button>
                   <button
                     onClick={() => setFilter("upcoming")}
-                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+                    className={`relative z-10 px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
                       filter === "upcoming"
-                        ? "bg-white text-gray-900 shadow-sm"
+                        ? "text-gray-900"
                         : "text-gray-600 hover:text-gray-900"
                     }`}
                   >
+                    {filter === "upcoming" && (
+                      <div className="absolute inset-0 bg-white shadow-sm rounded-md -z-10 transition-all duration-200" />
+                    )}
                     Upcoming
                   </button>
                   <button
                     onClick={() => setFilter("past")}
-                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+                    className={`relative z-10 px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
                       filter === "past"
-                        ? "bg-white text-gray-900 shadow-sm"
+                        ? "text-gray-900"
                         : "text-gray-600 hover:text-gray-900"
                     }`}
                   >
+                    {filter === "past" && (
+                      <div className="absolute inset-0 bg-white shadow-sm rounded-md -z-10 transition-all duration-200" />
+                    )}
                     Past
                   </button>
                 </div>
 
                 {/* Guest List with Timeline */}
-                <div className="space-y-3 relative">
-                  {/* Timeline line */}
+                <div className="space-y-2.5 relative">
+                  {/* Timeline line - subtle */}
                   {filteredReservations.length > 0 && (
-                    <div className="absolute left-2 top-6 bottom-6 w-px bg-linear-to-b from-gray-200 via-gray-300 to-gray-200" />
+                    <div className="absolute left-2 top-4 bottom-4 w-px bg-linear-to-b from-gray-200/60 via-gray-300/80 to-gray-200/60" />
                   )}
 
                   {filteredReservations.length === 0 ? (
@@ -426,23 +473,25 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
                     </div>
                   ) : (
                     filteredReservations.map((reservation, index) => (
-                      <div key={reservation.id} className="flex gap-3 relative">
-                        {/* Timeline dot */}
-                        <div className="relative z-10 mt-3">
-                          <div className={`w-2 h-2 rounded-full ${getStatusColor(reservation.status)} ring-4 ring-white`} />
+                      <div key={reservation.id} className="relative pl-6">
+                        {/* Timeline dot - aligned with the vertical line */}
+                        <div className="absolute left-2 top-3.5 z-10 -translate-x-1/2">
+                          <div className={`w-2 h-2 rounded-full ${getStatusColor(reservation.status)} ring-4 ring-white transition-all ${
+                            selectedReservation?.id === reservation.id ? 'scale-125 ring-lime-100' : ''
+                          }`} />
                         </div>
 
-                        {/* Card */}
+                        {/* Card - reduced padding */}
                         <div
                           onClick={() => setSelectedReservation(reservation)}
-                          className={`flex-1 p-4 bg-white rounded-2xl border cursor-pointer transition-all hover:shadow-lg hover:-translate-y-0.5 ${
+                          className={`p-3 bg-white rounded-2xl border cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 ${
                             selectedReservation?.id === reservation.id
-                              ? "border-lime-500 shadow-md ring-2 ring-lime-100"
+                              ? "border-lime-500 shadow-md ring-2 ring-lime-100 bg-lime-50/30"
                               : "border-gray-200 shadow-sm hover:border-gray-300"
                           }`}
                         >
                           {/* Top row: Name + Status */}
-                          <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-start justify-between mb-2">
                             <div className="flex items-center gap-2">
                               <div className="font-semibold text-gray-900">
                                 {reservation.name}
@@ -451,21 +500,21 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
                             </div>
                           </div>
 
-                          {/* Middle row: Time + Guests - More elegant */}
-                          <div className="flex items-center gap-3 mb-3 text-sm">
-                            <div className="flex items-center gap-1.5 text-gray-700">
+                          {/* Middle row: Time + Guests - Visual hierarchy */}
+                          <div className="flex items-center gap-3 mb-2 text-sm">
+                            <div className="flex items-center gap-1.5 text-gray-900">
                               <Clock className="h-3.5 w-3.5 text-gray-400" />
-                              <span className="font-medium">{reservation.time}</span>
+                              <span className="font-semibold">{reservation.time}</span>
                             </div>
-                            <div className="flex items-center gap-1.5 text-gray-600">
+                            <div className="flex items-center gap-1.5 text-gray-500">
                               <Users className="h-3.5 w-3.5 text-gray-400" />
-                              <span>{reservation.guests}</span>
+                              <span className="font-normal">{reservation.guests}</span>
                             </div>
                           </div>
 
-                          {/* Bottom row: Table - Softer design */}
-                          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/5 border border-slate-900/10 rounded-full text-xs font-medium text-slate-700">
-                            <MapPin className="h-3 w-3" />
+                          {/* Bottom row: Table - smaller, less attention */}
+                          <div className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-900/5 border border-slate-900/10 rounded-full text-[11px] font-medium text-slate-600">
+                            <MapPin className="h-2.5 w-2.5" />
                             {reservation.table} · {reservation.floor}
                           </div>
                         </div>
@@ -474,102 +523,135 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
                   )}
                 </div>
 
-                {/* Reservation Details Panel */}
-                {selectedReservation && (
-                  <div className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm">
-                    <div className="flex items-start justify-between mb-3">
-                      <h4 className="font-semibold text-sm">Reservation Details</h4>
-                      <button
-                        onClick={() => setSelectedReservation(null)}
-                        className="text-gray-400 hover:text-gray-600"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    <div className="space-y-3 text-sm">
-                      <div>
-                        <div className="text-xs text-gray-500 mb-1">Guest</div>
-                        <div className="font-medium">{selectedReservation.name}</div>
-                      </div>
-
-                      <div>
-                        <div className="text-xs text-gray-500 mb-1">Contact</div>
-                        <div className="flex items-center gap-1">
-                          <Phone className="h-3 w-3" />
-                          {selectedReservation.phone}
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <div className="text-xs text-gray-500 mb-1">Date & Time</div>
-                          <div>{selectedReservation.time}</div>
-                          <div className="text-xs text-gray-600">{selectedReservation.date}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-500 mb-1">Guests</div>
-                          <div className="flex items-center gap-1">
-                            <Users className="h-3 w-3" />
-                            {selectedReservation.guests}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="text-xs text-gray-500 mb-1">Table</div>
-                        <div className="font-semibold">{selectedReservation.table}</div>
-                        <div className="text-xs text-gray-600">{selectedReservation.floor}</div>
-                      </div>
-
-                      {selectedReservation.notes && (
-                        <div>
-                          <div className="text-xs text-gray-500 mb-1">Notes</div>
-                          <div className="text-xs text-gray-700 bg-gray-50 p-2 rounded">
-                            {selectedReservation.notes}
-                          </div>
-                        </div>
-                      )}
-
-                      <Separator />
-
-                      {/* Actions */}
-                      <div className="space-y-2">
-                        {selectedReservation.status === "upcoming" && (
-                          <Button
-                            onClick={() => handleMarkAsSeated(selectedReservation)}
-                            className="w-full bg-lime-500 hover:bg-lime-600 text-white gap-2"
-                            size="sm"
-                          >
-                            <CheckCircle2 className="h-4 w-4" />
-                            Mark as Seated
-                          </Button>
-                        )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full gap-2"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                          Edit
-                        </Button>
-                        {selectedReservation.status !== "cancelled" && selectedReservation.status !== "completed" && (
-                          <Button
-                            onClick={() => handleCancelReservation(selectedReservation)}
-                            variant="outline"
-                            size="sm"
-                            className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            Cancel Reservation
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
         </div>
       )}
+
+      {/* Reservation Details Drawer */}
+      <Sheet open={!!selectedReservation} onOpenChange={(open) => !open && setSelectedReservation(null)}>
+        <SheetContent className="w-full sm:max-w-md flex flex-col p-0">
+          {selectedReservation && (
+            <>
+              {/* Header - Strong & Compact */}
+              <div className="px-5 pt-5 pb-4 border-b">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <h2 className="text-xl font-semibold text-gray-900">
+                        {selectedReservation.name}
+                      </h2>
+                      {getStatusBadge(selectedReservation.status)}
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      {formatDate(selectedReservation.date)} · {selectedReservation.time} · {selectedReservation.guests} {selectedReservation.guests === 1 ? 'guest' : 'guests'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Table Info - Prominent */}
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white rounded-lg text-sm font-medium">
+                  <MapPin className="h-3.5 w-3.5" />
+                  {selectedReservation.table} · {selectedReservation.floor}
+                  {selectedReservation.tableCapacity && (
+                    <>
+                      <span className="text-gray-400">·</span>
+                      <Users className="h-3.5 w-3.5" />
+                      {selectedReservation.tableCapacity}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Body - Compact info rows */}
+              <div className="flex-1 overflow-y-auto px-5 py-4">
+                <div className="space-y-0 divide-y divide-gray-100">
+                  {/* Contact Row */}
+                  <div className="py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <Phone className="h-4 w-4 text-gray-400" />
+                      <span className="text-sm font-medium text-gray-900">{selectedReservation.phone}</span>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 gap-1"
+                        onClick={() => handleCall(selectedReservation.phone)}
+                      >
+                        <Phone className="h-3 w-3" />
+                        Call
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 gap-1"
+                        onClick={() => copyToClipboard(selectedReservation.phone, "Phone number")}
+                      >
+                        <Copy className="h-3 w-3" />
+                        Copy
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Time Row */}
+                  <div className="py-3 flex items-center gap-2.5">
+                    <Clock className="h-4 w-4 text-gray-400" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-gray-900">{selectedReservation.time}</div>
+                      <div className="text-xs text-gray-500">{formatDate(selectedReservation.date)}</div>
+                    </div>
+                  </div>
+
+                  {/* Guests Row */}
+                  <div className="py-3 flex items-center gap-2.5">
+                    <Users className="h-4 w-4 text-gray-400" />
+                    <span className="text-sm font-medium text-gray-900">
+                      {selectedReservation.guests} {selectedReservation.guests === 1 ? 'guest' : 'guests'}
+                    </span>
+                  </div>
+
+                  {/* Notes Row */}
+                  <div className="py-3 flex gap-2.5">
+                    <Edit2 className="h-4 w-4 text-gray-400 mt-0.5" />
+                    <div className="flex-1">
+                      {selectedReservation.notes ? (
+                        <p className="text-sm text-gray-700 leading-relaxed">
+                          {selectedReservation.notes}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-gray-400">
+                          No notes
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer - Tight actions */}
+              <div className="border-t bg-white px-5 py-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    className="gap-2 h-9"
+                  >
+                    <Edit2 className="h-3.5 w-3.5" />
+                    Edit
+                  </Button>
+                  <Button
+                    onClick={() => handleCancelReservation(selectedReservation)}
+                    variant="destructive"
+                    className="gap-2 h-9"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

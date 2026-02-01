@@ -4,10 +4,16 @@ import { Plus, MoreVertical, Edit, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { createFloor, updateFloor, deleteFloor } from "@/modules/dashboard/actions";
 
-export function FloorTabs({ venueId }: { venueId: string }) {
+interface FloorTabsProps {
+  venueId: string;
+  onEditClick?: () => void;
+}
+
+export function FloorTabs({ venueId, onEditClick }: FloorTabsProps) {
   const { floors, currentFloorId, setCurrentFloor, addFloor, updateFloor: updateFloorInStore, deleteFloor: deleteFloorFromStore } = useCanvasStore();
 
   const [isCreating, setIsCreating] = useState(false);
@@ -69,9 +75,9 @@ export function FloorTabs({ venueId }: { venueId: string }) {
   };
 
   return (
-    <div className="flex items-center gap-2 border-b border-gray-200 bg-white px-6 py-3">
+    <div className="flex items-center justify-between gap-3 bg-white px-4 py-2">
       {/* Floor Tabs */}
-      <div className="flex items-center gap-2 flex-1">
+      <div className="flex items-center gap-2">
         {floors.map((floor) => {
           const isActive = floor.id === currentFloorId;
           const isEditing = editingFloorId === floor.id;
@@ -79,12 +85,16 @@ export function FloorTabs({ venueId }: { venueId: string }) {
           return (
             <div
               key={floor.id}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
-                isActive
-                  ? "bg-lime-50 border-lime-500 text-lime-900"
-                  : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
-              }`}
+              className="flex items-center gap-2"
             >
+              <Badge
+                variant={isActive ? "default" : "outline"}
+                className={`px-3 py-1.5 cursor-pointer transition-colors ${
+                  isActive
+                    ? "bg-lime-500 hover:bg-lime-600 border-lime-500"
+                    : "hover:bg-gray-50"
+                }`}
+              >
               {isEditing ? (
                 <Input
                   value={editingFloorName}
@@ -134,6 +144,7 @@ export function FloorTabs({ venueId }: { venueId: string }) {
                   </div>
                 </>
               )}
+              </Badge>
             </div>
           );
         })}
@@ -178,6 +189,18 @@ export function FloorTabs({ venueId }: { venueId: string }) {
           </Button>
         )}
       </div>
+
+      {/* Edit Floor Plan Button */}
+      {onEditClick && (
+        <Button
+          onClick={onEditClick}
+          size="sm"
+          className="bg-lime-500 hover:bg-lime-600 text-white gap-2"
+        >
+          <Edit className="h-4 w-4" />
+          Edit Floor Plan
+        </Button>
+      )}
     </div>
   );
 }

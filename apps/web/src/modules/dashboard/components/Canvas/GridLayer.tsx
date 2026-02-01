@@ -6,9 +6,10 @@ import { useCanvasStore } from "@/stores/canvas-store";
 interface GridLayerProps {
   width: number;
   height: number;
+  readOnly?: boolean;
 }
 
-export function GridLayer({ width, height }: GridLayerProps) {
+export function GridLayer({ width, height, readOnly = false }: GridLayerProps) {
   const { gridSize, borders, currentFloorId } = useCanvasStore();
 
   const dots: React.ReactNode[] = [];
@@ -37,8 +38,8 @@ export function GridLayer({ width, height }: GridLayerProps) {
             key={`dot-${x}-${y}`}
             x={x}
             y={y}
-            radius={2}
-            fill="rgba(0, 0, 0, 0.15)"
+            radius={1.5}
+            fill="rgba(0, 0, 0, 0.06)"
             listening={false}
           />
         );

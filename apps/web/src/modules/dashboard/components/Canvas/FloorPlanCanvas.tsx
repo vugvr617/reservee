@@ -521,7 +521,7 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
       >
         {/* Grid */}
         <Layer>
-          <GridLayer width={canvasBounds.width} height={canvasBounds.height} />
+          <GridLayer width={canvasBounds.width} height={canvasBounds.height} readOnly={readOnly} />
         </Layer>
 
         {/* Borders */}

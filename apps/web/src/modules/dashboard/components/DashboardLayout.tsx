@@ -26,7 +26,7 @@ export function DashboardLayout({
   const [isEditMode, setIsEditMode] = useState(false);
   const [isGuestPanelCollapsed, setIsGuestPanelCollapsed] = useState(false);
 
-  // Initialize store with server data
+  // Initialize store with server data only once on mount
   useEffect(() => {
     setFloors(initialFloors);
     setTables(initialTables);
@@ -62,7 +62,8 @@ export function DashboardLayout({
     if (!currentFloorId && initialFloors.length > 0) {
       setCurrentFloor(initialFloors[0].id);
     }
-  }, [initialFloors, initialTables, setFloors, setTables, setBorders, setCurrentFloor, currentFloorId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   return (
     <div className="flex h-screen w-screen bg-gray-50 overflow-hidden">
@@ -73,16 +74,7 @@ export function DashboardLayout({
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         {/* Header with Floor Tabs */}
         <header className="border-b border-gray-200 bg-white">
-        <div className="flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-4">
-            <input
-              type="text"
-              placeholder="Search Table..."
-              className="px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-lime-500 w-64"
-            />
-          </div>
-        </div>
-          <FloorTabs venueId={venueId} />
+          <FloorTabs venueId={venueId} onEditClick={() => setIsEditMode(true)} />
         </header>
 
         {/* Main Content Area */}
@@ -93,9 +85,9 @@ export function DashboardLayout({
             <>
               <FloorPlanCanvas readOnly={!isEditMode} />
 
-              {/* Action Buttons - Floating */}
-              <div className="absolute top-4 right-4 flex gap-2 z-20">
-                {!isEditMode && (
+              {/* Panel Toggle Button - Floating */}
+              {!isEditMode && (
+                <div className="absolute top-4 right-4 z-20">
                   <Button
                     onClick={() => setIsGuestPanelCollapsed(!isGuestPanelCollapsed)}
                     variant="outline"
@@ -108,15 +100,8 @@ export function DashboardLayout({
                       <PanelRightClose className="h-4 w-4" />
                     )}
                   </Button>
-                )}
-                <Button
-                  onClick={() => setIsEditMode(true)}
-                  className="bg-lime-500 hover:bg-lime-600 text-white gap-2"
-                >
-                  <Settings2 className="h-4 w-4" />
-                  Edit Floor Plan
-                </Button>
-              </div>
+                </div>
+              )}
             </>
           ) : (
             <div className="flex items-center justify-center h-full">
