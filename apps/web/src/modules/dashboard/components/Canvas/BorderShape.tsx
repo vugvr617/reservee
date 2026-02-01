@@ -1,6 +1,6 @@
 "use client";
 
-import { Rect, Group } from "react-konva";
+import { Rect, Group, Text } from "react-konva";
 import type { Border } from "@/modules/dashboard/types";
 import { useCanvasStore } from "@/stores/canvas-store";
 import type { KonvaEventObject } from "konva/lib/Node";
@@ -67,28 +67,49 @@ export function BorderShape({
     }
   };
 
+  // Modern styling based on mode
+  const cornerRadius = 22;
+
   return (
     <Group>
-      {/* Main border outline (wall) */}
+      {/* White background with shadow - slightly transparent to show grid */}
+      <Rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        fill="rgba(255, 255, 255, 0.85)"
+        cornerRadius={cornerRadius}
+        shadowColor="rgba(15, 23, 42, 0.06)"
+        shadowBlur={24}
+        shadowOffsetX={0}
+        shadowOffsetY={8}
+        listening={false}
+      />
+
+      {/* Main border outline - subtle and modern */}
       <Rect
         id={id}
         x={x}
         y={y}
         width={width}
         height={height}
-        stroke={isSelected ? "#22c55e" : "#6b7280"}
-        strokeWidth={isSelected ? 4 : 3}
+        stroke={
+          isSelected
+            ? "#22c55e"
+            : readOnly
+              ? "#d1d5db" // Subtle in view mode
+              : "#9ca3af" // More visible in edit mode
+        }
+        strokeWidth={isSelected ? 2 : 1}
+        dash={!readOnly && !isSelected ? [8, 4] : undefined} // Dashed in edit mode
         fill="transparent"
-        cornerRadius={8}
+        cornerRadius={cornerRadius}
         onClick={handleClick}
         onTap={handleClick}
         onTransformEnd={handleTransformEnd}
         listening={shouldListen}
         draggable={false}
-        shadowColor="rgba(0, 0, 0, 0.1)"
-        shadowBlur={isSelected ? 8 : 0}
-        shadowOffsetX={0}
-        shadowOffsetY={2}
       />
     </Group>
   );
