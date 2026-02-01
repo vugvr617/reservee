@@ -8,8 +8,133 @@ import { useCanvasStore } from "@/stores/canvas-store";
 import { TABLE_STATUS_COLORS } from "@/modules/dashboard/constants";
 import { constrainToBorder } from "@/modules/dashboard/utils/collision";
 
-// Lucide Users icon SVG path
-const USERS_ICON_PATH = "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm13 10v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75";
+// Checkmark icon SVG path
+const CHECKMARK_ICON_PATH = "M20 6L9 17l-5-5";
+
+// Chair dimensions
+const CHAIR_THICKNESS = 12; // How thick the chair is (perpendicular to table edge)
+const CHAIR_GAP = 8; // Distance from table edge
+const CHAIR_SPACING = 6; // Gap between adjacent chairs on the same side
+
+// Calculate chair positions and dimensions based on capacity
+function calculateChairPositions(
+  capacity: number,
+  tableWidth: number,
+  tableHeight: number,
+  shape: "square" | "round" | "rectangular" | "oval"
+): Array<{ x: number; y: number; width: number; height: number; rotation: number }> {
+  const positions: Array<{ x: number; y: number; width: number; height: number; rotation: number }> = [];
+
+  if (capacity <= 0) return positions;
+
+  // Simple logic: distribute chairs on 4 sides (top, right, bottom, left)
+  // For small capacities (2-4), place 1 per side
+  // For larger capacities, distribute evenly on longer sides
+
+  const isHorizontal = tableWidth >= tableHeight;
+
+  // Determine how many chairs per side
+  let topCount = 0, rightCount = 0, bottomCount = 0, leftCount = 0;
+
+  if (capacity === 1) {
+    topCount = 1;
+  } else if (capacity === 2) {
+    leftCount = 1;
+    rightCount = 1;
+  } else if (capacity === 3) {
+    topCount = 1;
+    leftCount = 1;
+    rightCount = 1;
+  } else if (capacity === 4) {
+    topCount = 1;
+    rightCount = 1;
+    bottomCount = 1;
+    leftCount = 1;
+  } else if (capacity === 5) {
+    topCount = 2;
+    bottomCount = 2;
+    leftCount = 1;
+  } else if (capacity === 6) {
+    if (isHorizontal) {
+      topCount = 3;
+      bottomCount = 3;
+    } else {
+      leftCount = 3;
+      rightCount = 3;
+    }
+  } else if (capacity === 8) {
+    topCount = 2;
+    rightCount = 2;
+    bottomCount = 2;
+    leftCount = 2;
+  } else {
+    // For other capacities, distribute evenly
+    const perSide = Math.ceil(capacity / 4);
+    topCount = bottomCount = leftCount = rightCount = perSide;
+  }
+
+  // Top chairs
+  if (topCount > 0) {
+    const chairWidth = (tableWidth - CHAIR_SPACING * (topCount - 1)) / topCount;
+    for (let i = 0; i < topCount; i++) {
+      const x = i * (chairWidth + CHAIR_SPACING);
+      positions.push({
+        x,
+        y: -CHAIR_GAP - CHAIR_THICKNESS,
+        width: chairWidth,
+        height: CHAIR_THICKNESS,
+        rotation: 0,
+      });
+    }
+  }
+
+  // Bottom chairs
+  if (bottomCount > 0) {
+    const chairWidth = (tableWidth - CHAIR_SPACING * (bottomCount - 1)) / bottomCount;
+    for (let i = 0; i < bottomCount; i++) {
+      const x = i * (chairWidth + CHAIR_SPACING);
+      positions.push({
+        x,
+        y: tableHeight + CHAIR_GAP,
+        width: chairWidth,
+        height: CHAIR_THICKNESS,
+        rotation: 0,
+      });
+    }
+  }
+
+  // Left chairs
+  if (leftCount > 0) {
+    const chairHeight = (tableHeight - CHAIR_SPACING * (leftCount - 1)) / leftCount;
+    for (let i = 0; i < leftCount; i++) {
+      const y = i * (chairHeight + CHAIR_SPACING);
+      positions.push({
+        x: -CHAIR_GAP - CHAIR_THICKNESS,
+        y,
+        width: CHAIR_THICKNESS,
+        height: chairHeight,
+        rotation: 0,
+      });
+    }
+  }
+
+  // Right chairs
+  if (rightCount > 0) {
+    const chairHeight = (tableHeight - CHAIR_SPACING * (rightCount - 1)) / rightCount;
+    for (let i = 0; i < rightCount; i++) {
+      const y = i * (chairHeight + CHAIR_SPACING);
+      positions.push({
+        x: tableWidth + CHAIR_GAP,
+        y,
+        width: CHAIR_THICKNESS,
+        height: chairHeight,
+        rotation: 0,
+      });
+    }
+  }
+
+  return positions;
+}
 
 interface TableShapeProps {
   id: string;
@@ -55,16 +180,10 @@ export function TableShape({
     markTableDirty,
   } = useCanvasStore();
 
-  const fillColor = TABLE_STATUS_COLORS[status];
-
-  // Enhanced stroke colors for hover and selected states
-  const strokeColor = isSelected
-    ? "#22c55e" // Lime green when selected
-    : isHovered
-    ? "#3b82f6" // Blue on hover
-    : "#6b7280"; // Gray default
-
-  const strokeWidth = isSelected ? 3 : isHovered ? 2.5 : 2;
+  // Simplified colors matching the design
+  const fillColor = isSelected ? "#7dd3c0" : "#e5e7eb";
+  const strokeColor = isSelected ? "#5eead4" : "#d1d5db";
+  const strokeWidth = 2;
 
   const handleClick = (e: KonvaEventObject<MouseEvent | TouchEvent>) => {
     if (readOnly) return; // Disable selection in read-only mode
@@ -238,87 +357,31 @@ export function TableShape({
   // Only allow dragging in select mode and not in read-only mode
   const draggable = !readOnly && currentTool === "select";
 
-  // Calculate badge width based on text length
-  const badgeWidth = Math.max(50, tableIdentifier.length * 7 + 16);
-  const badgeX = width / 2 - badgeWidth / 2;
+  // Calculate chair positions
+  const chairPositions = calculateChairPositions(capacity, width, height, shape);
 
-  // Render shape with enhanced hover/selected states
+  // Extract just the number from table identifier (e.g., "Table 5" -> "5")
+  const tableNumber = tableIdentifier.replace(/[^\d]/g, '') || tableIdentifier;
+
+  // Simplified table rendering
   const renderShape = () => {
-    // Enhanced shadow on hover and selected
-    const shadowBlur = isSelected ? 12 : isHovered ? 10 : 8;
-    const shadowOffsetY = isSelected ? 4 : isHovered ? 3 : 2;
-    const shadowOpacity = isSelected ? 0.4 : isHovered ? 0.35 : 0.3;
-
-    // Add faint selection background
-    const tableFill = isSelected
-      ? `${fillColor}` // Could add opacity here if needed
-      : fillColor;
-
     const commonProps = {
-      fill: tableFill,
+      fill: fillColor,
       stroke: strokeColor,
       strokeWidth: strokeWidth,
-      shadowColor: isSelected ? 'rgba(132, 204, 22, 0.3)' : 'rgba(0, 0, 0, 0.15)',
-      shadowBlur: shadowBlur,
-      shadowOffsetX: 0,
-      shadowOffsetY: shadowOffsetY,
-      shadowOpacity: shadowOpacity,
     };
-
-    // Inner border for depth effect
-    const innerBorderProps = {
-      stroke: 'rgba(255, 255, 255, 0.4)',
-      strokeWidth: 2,
-      fill: 'transparent',
-      listening: false,
-    };
-
-    const inset = 4; // Distance from outer border
 
     if (shape === "square" || shape === "rectangular") {
-      return (
-        <>
-          <Rect width={width} height={height} {...commonProps} cornerRadius={8} />
-          <Rect
-            x={inset}
-            y={inset}
-            width={width - inset * 2}
-            height={height - inset * 2}
-            {...innerBorderProps}
-            cornerRadius={6}
-          />
-        </>
-      );
+      return <Rect width={width} height={height} {...commonProps} cornerRadius={12} />;
     }
 
     if (shape === "round") {
       const radius = Math.min(width, height) / 2;
-      return (
-        <>
-          <Circle x={width / 2} y={height / 2} radius={radius} {...commonProps} />
-          <Circle
-            x={width / 2}
-            y={height / 2}
-            radius={radius - inset}
-            {...innerBorderProps}
-          />
-        </>
-      );
+      return <Circle x={width / 2} y={height / 2} radius={radius} {...commonProps} />;
     }
 
     if (shape === "oval") {
-      return (
-        <>
-          <Ellipse x={width / 2} y={height / 2} radiusX={width / 2} radiusY={height / 2} {...commonProps} />
-          <Ellipse
-            x={width / 2}
-            y={height / 2}
-            radiusX={width / 2 - inset}
-            radiusY={height / 2 - inset}
-            {...innerBorderProps}
-          />
-        </>
-      );
+      return <Ellipse x={width / 2} y={height / 2} radiusX={width / 2} radiusY={height / 2} {...commonProps} />;
     }
 
     return null;
@@ -341,59 +404,54 @@ export function TableShape({
       onDragEnd={handleDragEnd}
       onTransformEnd={handleTransformEnd}
     >
+      {/* Chairs */}
+      {chairPositions.map((chair, index) => (
+        <Rect
+          key={`chair-${index}`}
+          x={chair.x}
+          y={chair.y}
+          width={chair.width}
+          height={chair.height}
+          fill={fillColor}
+          stroke={strokeColor}
+          strokeWidth={2}
+          cornerRadius={6}
+          listening={false}
+        />
+      ))}
+
       {/* Table shape */}
       {renderShape()}
 
-      {/* Badge background for Table ID - positioned above table */}
-      <Rect
-        x={badgeX}
-        y={-24}
-        width={badgeWidth}
-        height={18}
-        fill="#f3f4f6"
-        stroke="#d1d5db"
-        strokeWidth={1}
-        cornerRadius={9}
-        listening={false}
-      />
-
-      {/* Table ID text inside badge */}
+      {/* Table number - large and centered */}
       <Text
-        text={tableIdentifier}
-        fontSize={10}
+        text={tableNumber}
+        fontSize={32}
         fontFamily="Inter, sans-serif"
-        fontStyle="bold"
-        fill="#374151"
-        x={badgeX}
-        y={-21}
-        width={badgeWidth}
+        fontStyle="600"
+        fill="#9ca3af"
+        x={0}
+        y={height / 2 - 16}
+        width={width}
         align="center"
         listening={false}
       />
 
-      {/* Users icon - positioned in center-left */}
-      <Path
-        data={USERS_ICON_PATH}
-        fill="#374151"
-        stroke="#374151"
-        strokeWidth={1.5}
-        scale={{ x: 0.7, y: 0.7 }}
-        x={width / 2 - 18}
-        y={height / 2 - 8}
-        listening={false}
-      />
-
-      {/* Capacity number - positioned in center-right */}
-      <Text
-        text={`${capacity}`}
-        fontSize={14}
-        fontFamily="Inter, sans-serif"
-        fontStyle="bold"
-        fill="#374151"
-        x={width / 2 + 2}
-        y={height / 2 - 7}
-        listening={false}
-      />
+      {/* Checkmark icon for selected table */}
+      {isSelected && (
+        <Path
+          data={CHECKMARK_ICON_PATH}
+          fill="none"
+          stroke="#374151"
+          strokeWidth={2.5}
+          scale={{ x: 0.8, y: 0.8 }}
+          x={width - 18}
+          y={8}
+          listening={false}
+          lineCap="round"
+          lineJoin="round"
+        />
+      )}
     </Group>
   );
 }
