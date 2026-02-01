@@ -44,6 +44,8 @@ All colors are defined as CSS variables in `globals.css`. Use the corresponding 
 | `--destructive-foreground` | `#ffffff` | Text on destructive backgrounds |
 
 ### Rules
+- **CSS variables in `globals.css` must use hex values** (e.g., `#ffffff`, `#22c55e`), never `oklch()` or other color functions — `oklch` causes transparent/invisible backgrounds in shadcn components
+- **Always add explicit `bg-white` to shadcn overlay components** (DropdownMenuContent, PopoverContent, DialogContent, SelectContent, etc.). The `bg-popover`/`bg-card` semantic classes from `@theme inline` don't reliably resolve in Tailwind v4 portaled components, resulting in transparent backgrounds. Always pass `className="bg-white"` (or the appropriate background) as a safeguard.
 - **Never use `lime-*`, `emerald-*`, or other green-adjacent Tailwind palettes** — only `green-*` for brand green
 - **Never use black borders** — no `border-black`, `border-gray-900`, or `border-[#000]`. Use `border-gray-200` or `border-gray-300` for borders
 - **Background must be neutral white-gray** — use `bg-gray-50` (#f9fafb) or `bg-white` for page/section backgrounds. Never use blue-tinted backgrounds like `#f0f8ff`

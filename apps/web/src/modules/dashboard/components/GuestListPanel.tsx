@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Calendar as CalendarIcon, Clock, X, Edit2, CheckCircle2, Phone, Users, MapPin, Copy } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Clock, X, Edit2, Phone, Users, MapPin, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Calendar } from "@/components/ui/calendar";
+import { Calendar, CalendarDayButton } from "@/components/ui/calendar";
 import {
   Popover,
   PopoverContent,
@@ -33,11 +33,7 @@ import {
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
 } from "@/components/ui/sheet";
-import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 
 interface GuestListPanelProps {
@@ -145,6 +141,12 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
     },
   ];
 
+  // Build a map of date -> reservation count for calendar display
+  const reservationCountByDate = allReservations.reduce<Record<string, number>>((acc, r) => {
+    acc[r.date] = (acc[r.date] || 0) + 1;
+    return acc;
+  }, {});
+
   // Format selected date to YYYY-MM-DD for comparison
   const formatDateToISO = (date: Date) => {
     const year = date.getFullYear();
@@ -174,49 +176,23 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
 
   const filteredReservations = getFilteredReservations();
 
-  const getStatusBadge = (status: ReservationStatus) => {
-    switch (status) {
-      case "upcoming":
-        return (
-          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs gap-1 px-2 py-0.5">
-            <Clock className="h-3 w-3" />
-            Upcoming
-          </Badge>
-        );
-      case "seated":
-        return (
-          <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 text-xs gap-1 px-2 py-0.5">
-            <CheckCircle2 className="h-3 w-3" />
-            Seated
-          </Badge>
-        );
-      case "completed":
-        return (
-          <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200 text-xs gap-1 px-2 py-0.5">
-            <CheckCircle2 className="h-3 w-3" />
-            Completed
-          </Badge>
-        );
-      case "cancelled":
-        return (
-          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-xs gap-1 px-2 py-0.5">
-            <X className="h-3 w-3" />
-            Cancelled
-          </Badge>
-        );
-    }
-  };
+  const getStatusDot = (status: ReservationStatus, isSelected: boolean) => {
+    const base = "w-2.5 h-2.5 rounded-full transition-all duration-200";
+    const glow = isSelected ? "scale-125" : "";
 
-  const getStatusColor = (status: ReservationStatus) => {
     switch (status) {
       case "upcoming":
-        return "bg-blue-500";
+        // Blue ring (hollow)
+        return <div className={`${base} ${glow} border-2 border-blue-500 bg-transparent`} />;
       case "seated":
-        return "bg-green-500";
+        // Green filled
+        return <div className={`${base} ${glow} bg-green-500`} />;
       case "completed":
-        return "bg-gray-400";
+        // Gray filled
+        return <div className={`${base} ${glow} bg-gray-400`} />;
       case "cancelled":
-        return "bg-red-500";
+        // Red filled
+        return <div className={`${base} ${glow} bg-red-500`} />;
     }
   };
 
@@ -260,7 +236,7 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
   };
 
   return (
-    <div className={`${isCollapsed ? 'w-0' : 'w-80'} shrink-0 bg-white border-l border-gray-200 shadow-lg overflow-hidden transition-all duration-300`}>
+    <div className={`${isCollapsed ? 'w-0' : 'w-80'} shrink-0 bg-white border-l border-gray-200 shadow-lg overflow-hidden transition-all duration-400 ease-[cubic-bezier(0.32,0.72,0,1)]`}>
       {!isCollapsed && (
         <div className="h-full flex flex-col">
           {/* Header with New Reservation Button */}
@@ -409,7 +385,7 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
                 <div>
                   <Input
                     type="text"
-                    placeholder="Search reservations... (name, phone, table)"
+                    placeholder="Search reservations... (name, phone)"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="h-9 text-sm"
@@ -432,7 +408,7 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
                       })}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
+                  <PopoverContent className="w-auto p-0 bg-white shadow-lg border border-gray-200 rounded-xl" align="start">
                     <Calendar
                       mode="single"
                       selected={selectedDate}
@@ -442,71 +418,86 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
                           setCalendarOpen(false);
                         }
                       }}
+                      className="[--cell-size:--spacing(10)]"
                       initialFocus
+                      components={{
+                        DayButton: ({ day, modifiers, children: _children, ...props }) => {
+                          const dateStr = formatDateToISO(day.date);
+                          const count = reservationCountByDate[dateStr];
+                          const isSelected = modifiers.selected;
+                          return (
+                            <CalendarDayButton day={day} modifiers={modifiers} {...props}>
+                              <span className="text-[13px] font-medium">{day.date.getDate()}</span>
+                              {count ? (
+                                <span className={`text-[9px] leading-none font-semibold ${isSelected ? 'text-white/80' : 'text-green-500'}`}>
+                                  {count} res
+                                </span>
+                              ) : null}
+                            </CalendarDayButton>
+                          );
+                        },
+                      }}
                     />
                   </PopoverContent>
                 </Popover>
 
-                {/* Guest List with Timeline */}
-                <div className="space-y-2.5 relative">
-                  {/* Timeline line - subtle */}
-                  {filteredReservations.length > 0 && (
-                    <div className="absolute left-2 top-4 bottom-4 w-px bg-linear-to-b from-gray-200/60 via-gray-300/80 to-gray-200/60" />
-                  )}
-
+                {/* Timeline Reservation List */}
+                <div className="relative">
                   {filteredReservations.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                       <p className="text-sm">No reservations found</p>
                     </div>
                   ) : (
-                    filteredReservations.map((reservation) => (
-                      <div key={reservation.id} className="relative pl-6">
-                        {/* Timeline dot - aligned with the vertical line */}
-                        <div className="absolute left-2 top-3.5 z-10 -translate-x-1/2">
-                          <div className={`w-2 h-2 rounded-full ${getStatusColor(reservation.status)} ring-4 ring-white transition-all ${
-                            selectedReservation?.id === reservation.id ? 'scale-125 ring-green-100' : ''
-                          }`} />
-                        </div>
+                    <div className="relative">
+                      {/* Vertical timeline line - positioned to pass through circle centers */}
+                      <div className="absolute left-[69.5px] top-0 bottom-0 w-px bg-gray-200" />
 
-                        {/* Card - reduced padding */}
-                        <div
-                          onClick={() => setSelectedReservation(reservation)}
-                          className={`p-3 bg-white rounded-2xl border cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 ${
-                            selectedReservation?.id === reservation.id
-                              ? "border-green-500 shadow-md ring-2 ring-green-100 bg-green-50/30"
-                              : "border-gray-200 shadow-sm hover:border-gray-300"
-                          }`}
-                        >
-                          {/* Top row: Name + Status */}
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <div className="font-semibold text-gray-900">
+                      {filteredReservations.map((reservation) => {
+                        const isSelected = selectedReservation?.id === reservation.id;
+                        return (
+                          <div
+                            key={reservation.id}
+                            onClick={() => setSelectedReservation(reservation)}
+                            className={`relative flex items-center py-3.5 cursor-pointer transition-colors duration-150 rounded-lg ${
+                              isSelected
+                                ? "bg-green-50/60"
+                                : "hover:bg-gray-50"
+                            }`}
+                          >
+                            {/* Selected accent bar */}
+                            {isSelected && (
+                              <div className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-green-500" />
+                            )}
+
+                            {/* Time - left of the line */}
+                            <div className="w-[60px] shrink-0 text-center whitespace-nowrap">
+                              <span className="text-[12px] font-semibold text-gray-900 tracking-tight">
+                                {reservation.time}
+                              </span>
+                            </div>
+
+                            {/* Circle on the line */}
+                            <div className="relative z-10 w-[18px] shrink-0 flex items-center justify-center">
+                              <div className="bg-white p-[3px] rounded-full">
+                                {getStatusDot(reservation.status, isSelected)}
+                              </div>
+                            </div>
+
+                            {/* Reservation details - right of the line */}
+                            <div className="flex-1 min-w-0 pl-2.5">
+                              <div className="font-semibold text-gray-900 text-[13px] leading-tight truncate">
                                 {reservation.name}
                               </div>
-                              {getStatusBadge(reservation.status)}
+                              <div className="text-[11px] text-gray-400 mt-0.5 leading-tight">
+                                {reservation.guests} {reservation.guests === 1 ? 'guest' : 'guests'}
+                                <span className="mx-1 text-gray-300">·</span>
+                                {reservation.table}
+                              </div>
                             </div>
                           </div>
-
-                          {/* Middle row: Time + Guests - Visual hierarchy */}
-                          <div className="flex items-center gap-3 mb-2 text-sm">
-                            <div className="flex items-center gap-1.5 text-gray-900">
-                              <Clock className="h-3.5 w-3.5 text-gray-400" />
-                              <span className="font-semibold">{reservation.time}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-gray-500">
-                              <Users className="h-3.5 w-3.5 text-gray-400" />
-                              <span className="font-normal">{reservation.guests}</span>
-                            </div>
-                          </div>
-
-                          {/* Bottom row: Table - smaller, less attention */}
-                          <div className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-900/5 border border-slate-900/10 rounded-full text-[11px] font-medium text-slate-600">
-                            <MapPin className="h-2.5 w-2.5" />
-                            {reservation.table} · {reservation.floor}
-                          </div>
-                        </div>
-                      </div>
-                    ))
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
 
@@ -523,11 +514,11 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
               <div className="px-5 pt-5 pb-4 border-b">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1.5">
+                    <div className="flex items-center gap-2.5 mb-1.5">
                       <h2 className="text-xl font-semibold text-gray-900">
                         {selectedReservation.name}
                       </h2>
-                      {getStatusBadge(selectedReservation.status)}
+                      {getStatusDot(selectedReservation.status, false)}
                     </div>
                     <p className="text-sm text-gray-600">
                       {formatDate(selectedReservation.date)} · {selectedReservation.time} · {selectedReservation.guests} {selectedReservation.guests === 1 ? 'guest' : 'guests'}
