@@ -21,8 +21,6 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
-  const hasAutoFittedRef = useRef<Map<string, { width: number; height: number; readOnly: boolean }>>(new Map());
-
   const [stageSize, setStageSize] = useState({ width: 1200, height: 800 });
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
@@ -202,23 +200,8 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
   useEffect(() => {
     if (!currentFloorId) return;
 
-    // Check if we should re-fit (new floor, different container size, or different mode)
-    const prevFit = hasAutoFittedRef.current.get(currentFloorId);
-    const sizeChanged = prevFit && (
-      Math.abs(prevFit.width - stageSize.width) > 100 ||
-      Math.abs(prevFit.height - stageSize.height) > 100
-    );
-    const modeChanged = prevFit && prevFit.readOnly !== readOnly;
-
-    if (prevFit && !sizeChanged && !modeChanged) return;
-
     const border = borders.find(b => b.floorId === currentFloorId);
     if (border && stageRef.current) {
-      hasAutoFittedRef.current.set(currentFloorId, {
-        width: stageSize.width,
-        height: stageSize.height,
-        readOnly,
-      });
       const padding = 50;
       const scaleX = (stageSize.width - padding * 2) / border.width;
       const scaleY = (stageSize.height - padding * 2) / border.height;
@@ -230,7 +213,7 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
         y: (stageSize.height - border.height * scale) / 2 - border.y * scale,
       });
     }
-  }, [currentFloorId, borders, stageSize, readOnly, setStageScale, setStagePosition]);
+  }, [currentFloorId, borders, stageSize.width, stageSize.height, readOnly, setStageScale, setStagePosition]);
 
   // Transformer setup
   useEffect(() => {

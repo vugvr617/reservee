@@ -5,6 +5,12 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { createFloor, updateFloor, deleteFloor } from "@/modules/dashboard/actions";
 
@@ -118,30 +124,31 @@ export function FloorTabs({ venueId, onEditClick }: FloorTabsProps) {
                   >
                     {floor.floor_name}
                   </button>
-                  <div className="relative group">
-                    <button className="p-1 hover:bg-gray-200 rounded transition-colors">
-                      <MoreVertical className="h-3 w-3" />
-                    </button>
-                    <div className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 min-w-[120px]">
-                      <button
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="p-1 hover:bg-gray-200 rounded transition-colors">
+                        <MoreVertical className="h-3 w-3" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-[120px] bg-white">
+                      <DropdownMenuItem
                         onClick={() => {
                           setEditingFloorId(floor.id);
                           setEditingFloorName(floor.floor_name);
                         }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
                       >
-                        <Edit className="h-3 w-3" />
+                        <Edit className="h-3 w-3 mr-2" />
                         Edit
-                      </button>
-                      <button
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
                         onClick={() => handleDeleteFloor(floor.id)}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                        className="text-red-600 focus:text-red-600 focus:bg-red-50"
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Trash2 className="h-3 w-3 mr-2" />
                         Delete
-                      </button>
-                    </div>
-                  </div>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </>
               )}
               </Badge>
