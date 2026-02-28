@@ -385,7 +385,6 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
                 <div>
                   <Input
                     type="text"
-                    placeholder="Search reservations... (name, phone)"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="h-9 text-sm"
