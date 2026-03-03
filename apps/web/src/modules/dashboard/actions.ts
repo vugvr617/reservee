@@ -1,7 +1,7 @@
 "use server";
 
-import { auth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { getCurrentVenue } from "./get-current-venue";
 import type {
   CreateFloorInput,
   UpdateFloorInput,
@@ -10,29 +10,6 @@ import type {
   Floor,
   TableData,
 } from "./types";
-
-// Get current user's venue
-async function getCurrentVenue() {
-  const session = await auth.api.getSession({
-    headers: await import("next/headers").then((mod) => mod.headers()),
-  });
-
-  if (!session?.user?.id) {
-    throw new Error("Unauthorized");
-  }
-
-  const { data: venue, error } = await supabase
-    .from("venue")
-    .select("id")
-    .eq("userId", session.user.id)
-    .single();
-
-  if (error || !venue) {
-    throw new Error("Venue not found");
-  }
-
-  return venue.id;
-}
 
 // ============================================
 // Floor Management

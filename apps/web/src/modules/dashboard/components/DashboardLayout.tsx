@@ -114,7 +114,12 @@ export function DashboardLayout({
           </main>
 
           {/* Guest List Panel */}
-          {!isEditMode && <GuestListPanel isCollapsed={isGuestPanelCollapsed} />}
+          {!isEditMode && (
+            <GuestListPanel
+              isCollapsed={isGuestPanelCollapsed}
+              venueId={venueId}
+            />
+          )}
         </div>
 
         {/* Edit Mode Modal */}

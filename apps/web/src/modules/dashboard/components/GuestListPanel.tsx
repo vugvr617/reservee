@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, Calendar as CalendarIcon, Clock, X, Edit2, Phone, Users, MapPin, Copy } from "lucide-react";
+import { useState, useMemo } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { format, parse } from "date-fns";
+import { Plus, Calendar as CalendarIcon, Ban, Phone, Users, MapPin, Copy, Loader2, Check, Trash2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Calendar, CalendarDayButton } from "@/components/ui/calendar";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import {
   Popover,
   PopoverContent,
@@ -31,209 +34,309 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  Sheet,
-  SheetContent,
-} from "@/components/ui/sheet";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { createReservationSchema, type CreateReservationFormValues } from "../schemas";
+import type {
+  ReservationWithDetails,
+  ReservationStatus,
+  ReservationDisplayStatus,
+  TableOption,
+} from "../types";
+import {
+  useReservationsForDate,
+  useReservationCounts,
+  useAvailableTables,
+  useCreateReservation,
+  useUpdateReservationStatus,
+  useCancelReservation,
+  useDeleteReservation,
+} from "../hooks/use-reservations";
 
 interface GuestListPanelProps {
   isCollapsed: boolean;
+  venueId: string;
 }
 
-type ReservationStatus = "upcoming" | "seated" | "completed" | "cancelled";
+// ============================================
+// Helpers
+// ============================================
 
-interface Reservation {
-  id: number;
-  name: string;
-  phone: string;
-  date: string;
-  floor: string;
-  table: string;
-  guests: number;
-  time: string;
-  status: ReservationStatus;
-  notes?: string;
-  tableCapacity?: number;
+function mapStatusToDisplay(status: ReservationStatus): ReservationDisplayStatus {
+  switch (status) {
+    case "pending":
+    case "confirmed":
+      return "upcoming";
+    case "seated":
+      return "seated";
+    case "completed":
+      return "completed";
+    case "cancelled":
+    case "no_show":
+      return "cancelled";
+  }
 }
 
-export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
-  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date(2026, 1, 1)); // Feb 1, 2026
+function formatTime24to12(time24: string): string {
+  try {
+    // DB may return "HH:mm:ss" — strip seconds for parsing
+    const trimmed = time24.length > 5 ? time24.slice(0, 5) : time24;
+    const date = parse(trimmed, "HH:mm", new Date());
+    return format(date, "h:mm a");
+  } catch {
+    return time24;
+  }
+}
+
+function formatDateToISO(date: Date): string {
+  return format(date, "yyyy-MM-dd");
+}
+
+/**
+ * Build a local Date from "yyyy-MM-dd" + optional "HH:mm".
+ * Uses explicit constructor to avoid timezone parsing ambiguity.
+ */
+function buildLocalDate(dateStr: string, timeStr?: string): Date {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  if (timeStr) {
+    const [h, min] = timeStr.split(":").map(Number);
+    return new Date(y, m - 1, d, h, min, 0, 0);
+  }
+  return new Date(y, m - 1, d, 0, 0, 0, 0);
+}
+
+function getStatusLabel(status: ReservationStatus): string {
+  switch (status) {
+    case "pending": return "Pending";
+    case "confirmed": return "Confirmed";
+    case "seated": return "Seated";
+    case "completed": return "Completed";
+    case "cancelled": return "Cancelled";
+    case "no_show": return "No Show";
+  }
+}
+
+function getStatusBadgeClasses(status: ReservationStatus): string {
+  const display = mapStatusToDisplay(status);
+  switch (display) {
+    case "upcoming": return "bg-blue-50 text-blue-700 border-blue-200";
+    case "seated": return "bg-green-50 text-green-700 border-green-200";
+    case "completed": return "bg-gray-50 text-gray-500 border-gray-200";
+    case "cancelled": return "bg-red-50 text-red-600 border-red-200";
+  }
+}
+
+// ============================================
+// Component
+// ============================================
+
+export function GuestListPanel({ isCollapsed, venueId }: GuestListPanelProps) {
+  const [detailReservation, setDetailReservation] = useState<ReservationWithDetails | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isNewReservationOpen, setIsNewReservationOpen] = useState(false);
 
-  // Mock data for reservations with more realistic data
-  const allReservations: Reservation[] = [
-    {
-      id: 1,
-      name: "Gretchen Wilson",
-      phone: "+1 (555) 123-4567",
-      date: "2026-02-01",
-      floor: "Main Floor",
-      table: "MF-05",
-      guests: 6,
-      time: "10:30 AM",
-      status: "upcoming",
-      notes: "Window seat preferred",
-      tableCapacity: 6
-    },
-    {
-      id: 2,
-      name: "Nolan Chen",
-      phone: "+1 (555) 234-5678",
-      date: "2026-02-01",
-      floor: "Mezzanine",
-      table: "MZ-11",
-      guests: 4,
-      time: "12:00 PM",
-      status: "seated",
-      tableCapacity: 4
-    },
-    {
-      id: 3,
-      name: "Sarah Martinez",
-      phone: "+1 (555) 345-6789",
-      date: "2026-02-01",
-      floor: "Main Floor",
-      table: "MF-03",
-      guests: 2,
-      time: "06:30 PM",
-      status: "upcoming",
-      notes: "Anniversary dinner",
-      tableCapacity: 4
-    },
-    {
-      id: 4,
-      name: "James Rodriguez",
-      phone: "+1 (555) 456-7890",
-      date: "2026-02-03",
-      floor: "Patio",
-      table: "PT-08",
-      guests: 8,
-      time: "07:00 PM",
-      status: "upcoming",
-      tableCapacity: 8
-    },
-    {
-      id: 5,
-      name: "Emily Thompson",
-      phone: "+1 (555) 567-8901",
-      date: "2026-01-31",
-      floor: "Main Floor",
-      table: "MF-02",
-      guests: 4,
-      time: "07:30 PM",
-      status: "completed",
-      tableCapacity: 6
-    },
-    {
-      id: 6,
-      name: "Michael Brown",
-      phone: "+1 (555) 678-9012",
-      date: "2026-01-30",
-      floor: "Mezzanine",
-      table: "MZ-05",
-      guests: 2,
-      time: "08:00 PM",
-      status: "cancelled",
-      tableCapacity: 4
-    },
-  ];
+  const dateStr = formatDateToISO(selectedDate);
 
-  // Build a map of date -> reservation count for calendar display
-  const reservationCountByDate = allReservations.reduce<Record<string, number>>((acc, r) => {
-    acc[r.date] = (acc[r.date] || 0) + 1;
-    return acc;
-  }, {});
+  // --- React Query hooks ---
+  const { data: reservations = [], isLoading } = useReservationsForDate(venueId, dateStr);
+  const { data: reservationCounts = {} } = useReservationCounts(venueId, selectedDate);
 
-  // Format selected date to YYYY-MM-DD for comparison
-  const formatDateToISO = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
+  const createMutation = useCreateReservation(venueId, dateStr);
+  const statusMutation = useUpdateReservationStatus(venueId, dateStr);
+  const cancelMutation = useCancelReservation(venueId, dateStr);
+  const deleteMutation = useDeleteReservation(venueId, dateStr);
 
-  // Filter reservations based on selected date
-  const getFilteredReservations = () => {
-    const dateStr = formatDateToISO(selectedDate);
+  // --- React Hook Form ---
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const form = useForm<CreateReservationFormValues>({
+    resolver: zodResolver(createReservationSchema) as any,
+    defaultValues: {
+      guestName: "",
+      guestPhone: "",
+      partySize: 1,
+      reservationDate: "",
+      reservationTime: "",
+      tableId: null,
+      specialRequests: "",
+    },
+  });
 
-    let filtered = allReservations.filter(r => r.date === dateStr);
+  const watchDate = form.watch("reservationDate");
+  const watchTime = form.watch("reservationTime");
+  const watchPartySize = form.watch("partySize");
 
-    // Apply search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(r =>
-        r.name.toLowerCase().includes(query) ||
-        r.phone.includes(query) ||
-        r.table.toLowerCase().includes(query)
-      );
+  // Available tables for dropdown
+  const { data: tableOptions = [] } = useAvailableTables(
+    venueId,
+    watchDate || undefined,
+    watchTime || undefined,
+    watchPartySize || undefined
+  );
+
+  const tablesByFloor = useMemo(() => {
+    const grouped: Record<string, TableOption[]> = {};
+    for (const t of tableOptions) {
+      (grouped[t.floorName] = grouped[t.floorName] || []).push(t);
     }
+    return grouped;
+  }, [tableOptions]);
 
-    return filtered;
-  };
+  // --- Filtered reservations ---
+  const filteredReservations = useMemo(() => {
+    if (!searchQuery) return reservations;
+    const q = searchQuery.toLowerCase();
+    return reservations.filter(
+      (r) =>
+        r.guestName.toLowerCase().includes(q) ||
+        r.guestPhone.includes(q) ||
+        (r.tableIdentifier && r.tableIdentifier.toLowerCase().includes(q))
+    );
+  }, [reservations, searchQuery]);
 
-  const filteredReservations = getFilteredReservations();
-
+  // --- Status dot ---
   const getStatusDot = (status: ReservationStatus, isSelected: boolean) => {
+    const displayStatus = mapStatusToDisplay(status);
     const base = "w-2.5 h-2.5 rounded-full transition-all duration-200";
     const glow = isSelected ? "scale-125" : "";
 
-    switch (status) {
+    switch (displayStatus) {
       case "upcoming":
-        // Blue ring (hollow)
         return <div className={`${base} ${glow} border-2 border-blue-500 bg-transparent`} />;
       case "seated":
-        // Green filled
         return <div className={`${base} ${glow} bg-green-500`} />;
       case "completed":
-        // Gray filled
         return <div className={`${base} ${glow} bg-gray-400`} />;
       case "cancelled":
-        // Red filled
         return <div className={`${base} ${glow} bg-red-500`} />;
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
-
+  // --- Handlers ---
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast.success(`${label} copied to clipboard`);
   };
 
-  const handleCreateReservation = () => {
-    toast.success("Reservation created successfully");
-    setIsNewReservationOpen(false);
-  };
-
-  const handleMarkAsSeated = (reservation: Reservation) => {
-    toast.success(`${reservation.name} marked as seated`);
-    setSelectedReservation(null);
-  };
-
-  const handleMarkAsCompleted = (reservation: Reservation) => {
-    toast.success(`${reservation.name} marked as completed`);
-    setSelectedReservation(null);
-  };
-
-  const handleCancelReservation = (reservation: Reservation) => {
-    toast.success(`Reservation for ${reservation.name} cancelled`);
-    setSelectedReservation(null);
-  };
-
   const handleCall = (phone: string) => {
     window.location.href = `tel:${phone}`;
   };
+
+  const openDetail = (reservation: ReservationWithDetails) => {
+    setDetailReservation(reservation);
+  };
+
+  const onSubmitReservation = async (values: CreateReservationFormValues) => {
+    const result = await createMutation.mutateAsync({
+      venueId,
+      guestName: values.guestName.trim(),
+      guestPhone: values.guestPhone.trim(),
+      partySize: values.partySize,
+      reservationDate: values.reservationDate,
+      reservationTime: values.reservationTime,
+      tableId: values.tableId || null,
+      specialRequests: values.specialRequests?.trim() || undefined,
+    });
+
+    if (result.success) {
+      toast.success("Reservation created successfully");
+      setIsNewReservationOpen(false);
+      form.reset();
+    } else {
+      toast.error(result.error || "Failed to create reservation");
+    }
+  };
+
+  const handleMarkAsSeated = async (reservation: ReservationWithDetails) => {
+    const result = await statusMutation.mutateAsync({
+      id: reservation.id,
+      status: "seated",
+    });
+    if (result.success) {
+      toast.success(`${reservation.guestName} marked as seated`);
+      setDetailReservation((prev) => prev?.id === reservation.id ? { ...prev, status: "seated" } : prev);
+    } else {
+      toast.error(result.error || "Failed to update status");
+    }
+  };
+
+  const handleMarkAsCompleted = async (reservation: ReservationWithDetails) => {
+    const result = await statusMutation.mutateAsync({
+      id: reservation.id,
+      status: "completed",
+    });
+    if (result.success) {
+      toast.success(`${reservation.guestName} marked as completed`);
+      setDetailReservation((prev) => prev?.id === reservation.id ? { ...prev, status: "completed" } : prev);
+    } else {
+      toast.error(result.error || "Failed to update status");
+    }
+  };
+
+  const handleCancelReservation = async (reservation: ReservationWithDetails) => {
+    const previousStatus = reservation.status;
+    const result = await cancelMutation.mutateAsync({
+      id: reservation.id,
+    });
+    if (result.success) {
+      setDetailReservation((prev) => prev?.id === reservation.id ? { ...prev, status: "cancelled" } : prev);
+      toast(`Reservation for ${reservation.guestName} cancelled`, {
+        duration: 10000,
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            const undoResult = await statusMutation.mutateAsync({
+              id: reservation.id,
+              status: previousStatus,
+            });
+            if (undoResult.success) {
+              toast.success("Reservation restored");
+              setDetailReservation((prev) => prev?.id === reservation.id ? { ...prev, status: previousStatus } : prev);
+            } else {
+              toast.error("Failed to undo cancellation");
+            }
+          },
+        },
+      });
+    } else {
+      toast.error(result.error || "Failed to cancel reservation");
+    }
+  };
+
+  const handleRestoreReservation = async (reservation: ReservationWithDetails) => {
+    const result = await statusMutation.mutateAsync({
+      id: reservation.id,
+      status: "confirmed",
+    });
+    if (result.success) {
+      toast.success(`Reservation for ${reservation.guestName} restored`);
+      setDetailReservation((prev) => prev?.id === reservation.id ? { ...prev, status: "confirmed" } : prev);
+    } else {
+      toast.error(result.error || "Failed to restore reservation");
+    }
+  };
+
+  const handleDeleteReservation = async (reservation: ReservationWithDetails) => {
+    const result = await deleteMutation.mutateAsync(reservation.id);
+    if (result.success) {
+      toast.success("Reservation deleted");
+      setDetailReservation(null);
+    } else {
+      toast.error(result.error || "Failed to delete reservation");
+    }
+  };
+
+  const isMutating = statusMutation.isPending || cancelMutation.isPending || deleteMutation.isPending;
 
   return (
     <div className={`${isCollapsed ? 'w-0' : 'w-80'} shrink-0 bg-white border-l border-gray-200 shadow-lg overflow-hidden transition-all duration-400 ease-[cubic-bezier(0.32,0.72,0,1)]`}>
@@ -243,7 +346,13 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
           <div className="p-4 border-b border-gray-200">
             <div className="flex items-center justify-between mb-1">
               <h2 className="font-semibold text-gray-900">Reservations</h2>
-              <Dialog open={isNewReservationOpen} onOpenChange={setIsNewReservationOpen}>
+              <Dialog
+                open={isNewReservationOpen}
+                onOpenChange={(open) => {
+                  setIsNewReservationOpen(open);
+                  if (!open) form.reset();
+                }}
+              >
                 <DialogTrigger asChild>
                   <Button size="sm" className="h-8 bg-green-500 hover:bg-green-600 text-white gap-1.5 shadow-md rounded-full px-4">
                     <Plus className="h-3.5 w-3.5" />
@@ -258,7 +367,7 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
                   </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-4 py-4">
+                <form onSubmit={form.handleSubmit(onSubmitReservation)} className="space-y-4 py-4">
                   {/* Guest Name */}
                   <div className="space-y-1.5">
                     <Label htmlFor="guestName" className="text-sm">Guest Name</Label>
@@ -266,114 +375,139 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
                       id="guestName"
                       placeholder="e.g., John Smith"
                       className="h-10"
+                      {...form.register("guestName")}
                     />
+                    {form.formState.errors.guestName && (
+                      <p className="text-xs text-red-500">{form.formState.errors.guestName.message}</p>
+                    )}
                   </div>
 
                   {/* Phone */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="phone" className="text-sm">Phone</Label>
+                    <Label htmlFor="guestPhone" className="text-sm">Phone</Label>
                     <Input
-                      id="phone"
+                      id="guestPhone"
                       placeholder="+1 (555) 123-4567"
                       className="h-10"
+                      {...form.register("guestPhone")}
                     />
+                    {form.formState.errors.guestPhone && (
+                      <p className="text-xs text-red-500">{form.formState.errors.guestPhone.message}</p>
+                    )}
                   </div>
 
                   {/* Total Guests */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="guests" className="text-sm">Total Guests</Label>
+                    <Label htmlFor="partySize" className="text-sm">Total Guests</Label>
                     <Input
-                      id="guests"
+                      id="partySize"
                       type="number"
+                      min={1}
                       placeholder="e.g., 2"
                       className="h-10"
+                      {...form.register("partySize", { valueAsNumber: true })}
                     />
+                    {form.formState.errors.partySize && (
+                      <p className="text-xs text-red-500">{form.formState.errors.partySize.message}</p>
+                    )}
                   </div>
 
-                  {/* Date and Time Row */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="date" className="text-sm">Date</Label>
-                      <Input
-                        id="date"
-                        type="date"
-                        className="h-10"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="time" className="text-sm">Time</Label>
-                      <Input
-                        id="time"
-                        type="time"
-                        className="h-10"
-                      />
-                    </div>
+                  {/* Date & Time */}
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">Date & Time</Label>
+                    <DateTimePicker
+                      value={
+                        watchDate && watchTime
+                          ? buildLocalDate(watchDate, watchTime)
+                          : watchDate
+                            ? buildLocalDate(watchDate)
+                            : undefined
+                      }
+                      onChange={(date) => {
+                        form.setValue("reservationDate", formatDateToISO(date), { shouldValidate: true });
+                        form.setValue(
+                          "reservationTime",
+                          `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`,
+                          { shouldValidate: true }
+                        );
+                      }}
+                      placeholder="Pick date & time"
+                    />
+                    {form.formState.errors.reservationDate && (
+                      <p className="text-xs text-red-500">{form.formState.errors.reservationDate.message}</p>
+                    )}
+                    {form.formState.errors.reservationTime && (
+                      <p className="text-xs text-red-500">{form.formState.errors.reservationTime.message}</p>
+                    )}
                   </div>
 
                   {/* Table Assignment */}
                   <div className="space-y-1.5">
                     <Label htmlFor="table" className="text-sm">Table</Label>
-                    <Select>
+                    <Select
+                      value={form.watch("tableId") || ""}
+                      onValueChange={(val) =>
+                        form.setValue("tableId", val || null)
+                      }
+                    >
                       <SelectTrigger className="h-10 w-full">
-                        <SelectValue placeholder="Auto assign or select table" />
+                        <SelectValue placeholder="Select a table (optional)" />
                       </SelectTrigger>
                       <SelectContent className="bg-white">
-                        <SelectItem value="auto">Auto assign</SelectItem>
-                        <SelectGroup>
-                          <SelectLabel>Main Floor</SelectLabel>
-                          <SelectItem value="mf-01">MF-01</SelectItem>
-                          <SelectItem value="mf-02">MF-02</SelectItem>
-                          <SelectItem value="mf-03">MF-03</SelectItem>
-                          <SelectItem value="mf-04">MF-04</SelectItem>
-                          <SelectItem value="mf-05">MF-05</SelectItem>
-                        </SelectGroup>
-                        <SelectGroup>
-                          <SelectLabel>Mezzanine</SelectLabel>
-                          <SelectItem value="mz-01">MZ-01</SelectItem>
-                          <SelectItem value="mz-02">MZ-02</SelectItem>
-                          <SelectItem value="mz-11">MZ-11</SelectItem>
-                        </SelectGroup>
-                        <SelectGroup>
-                          <SelectLabel>Patio</SelectLabel>
-                          <SelectItem value="pt-01">PT-01</SelectItem>
-                          <SelectItem value="pt-02">PT-02</SelectItem>
-                          <SelectItem value="pt-08">PT-08</SelectItem>
-                        </SelectGroup>
+                        {Object.entries(tablesByFloor).map(([floorName, tables]) => (
+                          <SelectGroup key={floorName}>
+                            <SelectLabel>{floorName}</SelectLabel>
+                            {tables.map((t) => (
+                              <SelectItem key={t.id} value={t.id}>
+                                {t.tableIdentifier} (seats {t.maxCapacity})
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        ))}
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
-                      Click a table on the canvas to auto-fill
+                      {watchDate && watchTime
+                        ? `Showing ${tableOptions.length} available tables`
+                        : "Select date & time to see available tables"}
                     </p>
                   </div>
 
                   {/* Notes */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="notes" className="text-sm">Notes</Label>
+                    <Label htmlFor="specialRequests" className="text-sm">Notes</Label>
                     <Textarea
-                      id="notes"
+                      id="specialRequests"
                       placeholder="Special requests, dietary restrictions, etc."
                       className="resize-none"
                       rows={3}
+                      {...form.register("specialRequests")}
                     />
                   </div>
 
                   {/* Action Buttons */}
                   <div className="flex gap-3 pt-2">
                     <Button
-                      onClick={handleCreateReservation}
+                      type="submit"
+                      disabled={createMutation.isPending}
                       className="flex-1 bg-green-500 hover:bg-green-600 text-white gap-2"
                     >
-                      <Plus className="h-4 w-4" />
+                      {createMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Plus className="h-4 w-4" />
+                      )}
                       Create Reservation
                     </Button>
                     <Button
+                      type="button"
                       variant="outline"
                       onClick={() => setIsNewReservationOpen(false)}
                     >
                       Cancel
                     </Button>
                   </div>
-                </div>
+                </form>
               </DialogContent>
             </Dialog>
             </div>
@@ -387,6 +521,7 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search reservations..."
                     className="h-9 text-sm"
                   />
                 </div>
@@ -399,12 +534,7 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
                       className="w-full justify-start text-left font-normal h-9 text-sm"
                     >
                       <CalendarIcon className="mr-2 h-4 w-4 text-gray-400" />
-                      {selectedDate.toLocaleDateString('en-US', {
-                        weekday: 'short',
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric'
-                      })}
+                      {format(selectedDate, "EEE, MMM d, yyyy")}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0 bg-white shadow-lg border border-gray-200 rounded-xl" align="start">
@@ -421,14 +551,14 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
                       initialFocus
                       components={{
                         DayButton: ({ day, modifiers, children: _children, ...props }) => {
-                          const dateStr = formatDateToISO(day.date);
-                          const count = reservationCountByDate[dateStr];
-                          const isSelected = modifiers.selected;
+                          const dayStr = formatDateToISO(day.date);
+                          const count = reservationCounts[dayStr];
+                          const isDaySelected = modifiers.selected;
                           return (
                             <CalendarDayButton day={day} modifiers={modifiers} {...props}>
                               <span className="text-[13px] font-medium">{day.date.getDate()}</span>
                               {count ? (
-                                <span className={`text-[9px] leading-none font-semibold ${isSelected ? 'text-white/80' : 'text-green-500'}`}>
+                                <span className={`text-[9px] leading-none font-semibold ${isDaySelected ? 'text-white/80' : 'text-green-500'}`}>
                                   {count} res
                                 </span>
                               ) : null}
@@ -442,193 +572,239 @@ export function GuestListPanel({ isCollapsed }: GuestListPanelProps) {
 
                 {/* Timeline Reservation List */}
                 <div className="relative">
-                  {filteredReservations.length === 0 ? (
+                  {isLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                    </div>
+                  ) : filteredReservations.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                       <p className="text-sm">No reservations found</p>
                     </div>
                   ) : (
                     <div className="relative">
-                      {/* Vertical timeline line - positioned to pass through circle centers */}
+                      {/* Vertical timeline line */}
                       <div className="absolute left-[69.5px] top-0 bottom-0 w-px bg-gray-200" />
 
-                      {filteredReservations.map((reservation) => {
-                        const isSelected = selectedReservation?.id === reservation.id;
-                        return (
-                          <div
-                            key={reservation.id}
-                            onClick={() => setSelectedReservation(reservation)}
-                            className={`relative flex items-center py-3.5 cursor-pointer transition-colors duration-150 rounded-lg ${
-                              isSelected
-                                ? "bg-green-50/60"
-                                : "hover:bg-gray-50"
-                            }`}
-                          >
-                            {/* Selected accent bar */}
-                            {isSelected && (
-                              <div className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-green-500" />
-                            )}
+                      {filteredReservations.map((reservation) => (
+                        <div
+                          key={reservation.id}
+                          onClick={() => openDetail(reservation)}
+                          className="relative flex items-center py-3.5 cursor-pointer transition-colors duration-150 rounded-lg hover:bg-gray-50"
+                        >
+                          <div className="w-[60px] shrink-0 text-center whitespace-nowrap">
+                            <span className="text-[12px] font-semibold text-gray-900 tracking-tight">
+                              {formatTime24to12(reservation.reservationTime)}
+                            </span>
+                          </div>
 
-                            {/* Time - left of the line */}
-                            <div className="w-[60px] shrink-0 text-center whitespace-nowrap">
-                              <span className="text-[12px] font-semibold text-gray-900 tracking-tight">
-                                {reservation.time}
-                              </span>
-                            </div>
-
-                            {/* Circle on the line */}
-                            <div className="relative z-10 w-[18px] shrink-0 flex items-center justify-center">
-                              <div className="bg-white p-[3px] rounded-full">
-                                {getStatusDot(reservation.status, isSelected)}
-                              </div>
-                            </div>
-
-                            {/* Reservation details - right of the line */}
-                            <div className="flex-1 min-w-0 pl-2.5">
-                              <div className="font-semibold text-gray-900 text-[13px] leading-tight truncate">
-                                {reservation.name}
-                              </div>
-                              <div className="text-[11px] text-gray-400 mt-0.5 leading-tight">
-                                {reservation.guests} {reservation.guests === 1 ? 'guest' : 'guests'}
-                                <span className="mx-1 text-gray-300">·</span>
-                                {reservation.table}
-                              </div>
+                          <div className="relative z-10 w-[18px] shrink-0 flex items-center justify-center">
+                            <div className="bg-white p-[3px] rounded-full">
+                              {getStatusDot(reservation.status, false)}
                             </div>
                           </div>
-                        );
-                      })}
+
+                          <div className="flex-1 min-w-0 pl-2.5">
+                            <div className="font-semibold text-gray-900 text-[13px] leading-tight truncate">
+                              {reservation.guestName}
+                            </div>
+                            <div className="text-[11px] text-gray-400 mt-0.5 leading-tight">
+                              {reservation.partySize} {reservation.partySize === 1 ? 'guest' : 'guests'}
+                              <span className="mx-1 text-gray-300">·</span>
+                              {reservation.tableIdentifier || "No table"}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
 
               </div>
-        </div>
-      )}
 
-      {/* Reservation Details Drawer */}
-      <Sheet open={!!selectedReservation} onOpenChange={(open) => !open && setSelectedReservation(null)}>
-        <SheetContent className="w-full sm:max-w-md flex flex-col p-0">
-          {selectedReservation && (
-            <>
-              {/* Header - Strong & Compact */}
-              <div className="px-5 pt-5 pb-4 border-b">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2.5 mb-1.5">
-                      <h2 className="text-xl font-semibold text-gray-900">
-                        {selectedReservation.name}
-                      </h2>
-                      {getStatusDot(selectedReservation.status, false)}
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      {formatDate(selectedReservation.date)} · {selectedReservation.time} · {selectedReservation.guests} {selectedReservation.guests === 1 ? 'guest' : 'guests'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Table Info - Prominent */}
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-gray-700 border border-gray-200 rounded-lg text-sm font-medium">
-                  <MapPin className="h-3.5 w-3.5" />
-                  {selectedReservation.table} · {selectedReservation.floor}
-                  {selectedReservation.tableCapacity && (
-                    <>
-                      <span className="text-gray-400">·</span>
-                      <Users className="h-3.5 w-3.5" />
-                      {selectedReservation.tableCapacity}
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Body - Compact info rows */}
-              <div className="flex-1 overflow-y-auto px-5 py-4">
-                <div className="space-y-0 divide-y divide-gray-100">
-                  {/* Contact Row */}
-                  <div className="py-3 flex items-center justify-between">
+          {/* Reservation Detail Dialog */}
+          <Dialog
+            open={detailReservation !== null}
+            onOpenChange={(open) => { if (!open) setDetailReservation(null); }}
+          >
+            {detailReservation && (
+              <DialogContent className="sm:max-w-[420px] bg-white p-0 gap-0">
+                {/* Header */}
+                <div className="px-5 pt-5 pb-3">
+                  <DialogHeader className="space-y-1">
                     <div className="flex items-center gap-2.5">
-                      <Phone className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm font-medium text-gray-900">{selectedReservation.phone}</span>
+                      <DialogTitle className="text-lg">{detailReservation.guestName}</DialogTitle>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${getStatusBadgeClasses(detailReservation.status)}`}>
+                        {getStatusLabel(detailReservation.status)}
+                      </span>
                     </div>
-                    <div className="flex gap-1">
+                    <DialogDescription className="text-sm text-gray-500">
+                      {format(buildLocalDate(detailReservation.reservationDate), "EEEE, MMMM d")} at {formatTime24to12(detailReservation.reservationTime)}
+                    </DialogDescription>
+                  </DialogHeader>
+                </div>
+
+                {/* Details */}
+                <div className="px-5 pb-4 space-y-3">
+                  {/* Party Size */}
+                  <div className="flex items-center gap-3 text-sm text-gray-700">
+                    <Users className="h-4 w-4 text-gray-400 shrink-0" />
+                    <span>{detailReservation.partySize} {detailReservation.partySize === 1 ? 'guest' : 'guests'}</span>
+                  </div>
+
+                  {/* Phone */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 text-sm text-gray-700 min-w-0">
+                      <Phone className="h-4 w-4 text-gray-400 shrink-0" />
+                      <span className="truncate">{detailReservation.guestPhone}</span>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
                       <Button
-                        variant="ghost"
                         size="sm"
-                        className="h-7 px-2 gap-1"
-                        onClick={() => handleCall(selectedReservation.phone)}
+                        variant="ghost"
+                        className="h-7 px-2 text-xs text-gray-500"
+                        onClick={() => handleCall(detailReservation.guestPhone)}
                       >
-                        <Phone className="h-3 w-3" />
                         Call
                       </Button>
                       <Button
-                        variant="ghost"
                         size="sm"
-                        className="h-7 px-2 gap-1"
-                        onClick={() => copyToClipboard(selectedReservation.phone, "Phone number")}
+                        variant="ghost"
+                        className="h-7 px-2 text-xs text-gray-500"
+                        onClick={() => copyToClipboard(detailReservation.guestPhone, "Phone")}
                       >
                         <Copy className="h-3 w-3" />
-                        Copy
                       </Button>
                     </div>
                   </div>
 
-                  {/* Time Row */}
-                  <div className="py-3 flex items-center gap-2.5">
-                    <Clock className="h-4 w-4 text-gray-400" />
-                    <div className="flex-1">
-                      <div className="text-sm font-medium text-gray-900">{selectedReservation.time}</div>
-                      <div className="text-xs text-gray-500">{formatDate(selectedReservation.date)}</div>
-                    </div>
+                  {/* Table + Floor */}
+                  <div className="flex items-center gap-3 text-sm text-gray-700">
+                    <MapPin className="h-4 w-4 text-gray-400 shrink-0" />
+                    {detailReservation.tableIdentifier ? (
+                      <span>{detailReservation.tableIdentifier} · {detailReservation.floorName || "Unknown"}</span>
+                    ) : (
+                      <span className="text-gray-400">No table assigned</span>
+                    )}
                   </div>
 
-                  {/* Guests Row */}
-                  <div className="py-3 flex items-center gap-2.5">
-                    <Users className="h-4 w-4 text-gray-400" />
-                    <span className="text-sm font-medium text-gray-900">
-                      {selectedReservation.guests} {selectedReservation.guests === 1 ? 'guest' : 'guests'}
-                    </span>
-                  </div>
-
-                  {/* Notes Row */}
-                  <div className="py-3 flex gap-2.5">
-                    <Edit2 className="h-4 w-4 text-gray-400 mt-0.5" />
-                    <div className="flex-1">
-                      {selectedReservation.notes ? (
-                        <p className="text-sm text-gray-700 leading-relaxed">
-                          {selectedReservation.notes}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-gray-400">
-                          No notes
-                        </p>
-                      )}
+                  {/* Special Requests */}
+                  {detailReservation.specialRequests && (
+                    <div className="bg-gray-50 rounded-lg p-3 mt-1">
+                      <p className="text-xs font-medium text-gray-500 mb-1">Notes</p>
+                      <p className="text-sm text-gray-700 leading-relaxed">{detailReservation.specialRequests}</p>
                     </div>
+                  )}
+                </div>
+
+                {/* Footer Actions */}
+                <div className="px-5 py-4 border-t border-gray-100 flex items-center gap-2">
+                  {(detailReservation.status === "pending" || detailReservation.status === "confirmed") && (
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={() => handleMarkAsSeated(detailReservation)}
+                        className="bg-green-500 hover:bg-green-600 text-white gap-1.5"
+                        disabled={isMutating}
+                      >
+                        {statusMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                        Mark as Seated
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleCancelReservation(detailReservation)}
+                        className="gap-1.5 text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600"
+                        disabled={isMutating}
+                      >
+                        <Ban className="h-3.5 w-3.5" />
+                        Cancel Reservation
+                      </Button>
+                    </>
+                  )}
+                  {detailReservation.status === "seated" && (
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={() => handleMarkAsCompleted(detailReservation)}
+                        className="bg-green-500 hover:bg-green-600 text-white gap-1.5"
+                        disabled={isMutating}
+                      >
+                        {statusMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                        Mark as Completed
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleCancelReservation(detailReservation)}
+                        className="gap-1.5 text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600"
+                        disabled={isMutating}
+                      >
+                        <Ban className="h-3.5 w-3.5" />
+                        Cancel Reservation
+                      </Button>
+                    </>
+                  )}
+                  {detailReservation.status === "completed" && (
+                    <p className="text-xs text-gray-400">This reservation has been completed.</p>
+                  )}
+                  {detailReservation.status === "cancelled" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleRestoreReservation(detailReservation)}
+                      className="gap-1.5 text-green-600 border-green-200 hover:bg-green-50 hover:text-green-700"
+                      disabled={isMutating}
+                    >
+                      {statusMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                      Restore Reservation
+                    </Button>
+                  )}
+                  {detailReservation.status === "no_show" && (
+                    <p className="text-xs text-gray-400">Guest did not show up.</p>
+                  )}
+
+                  {/* Delete */}
+                  <div className="ml-auto">
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-50"
+                          disabled={isMutating}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent className="bg-white">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete reservation?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will permanently delete the reservation for {detailReservation.guestName}. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Keep it</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleDeleteReservation(detailReservation)}
+                            className="bg-red-500 hover:bg-red-600 text-white"
+                          >
+                            {deleteMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              "Delete"
+                            )}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
-              </div>
-
-              {/* Footer - Tight actions */}
-              <div className="border-t bg-white px-5 py-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant="outline"
-                    className="gap-2 h-9"
-                  >
-                    <Edit2 className="h-3.5 w-3.5" />
-                    Edit
-                  </Button>
-                  <Button
-                    onClick={() => handleCancelReservation(selectedReservation)}
-                    variant="destructive"
-                    className="gap-2 h-9"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
+              </DialogContent>
+            )}
+          </Dialog>
+        </div>
+      )}
     </div>
   );
 }
