@@ -46,7 +46,7 @@ export default function OnboardingClient({ initialData }: OnboardingClientProps)
 
   const handleSignOut = async () => {
     await signOut();
-    window.location.href = "/sign-in";
+    window.location.href = "/login";
   };
 
   const slideVariants = {

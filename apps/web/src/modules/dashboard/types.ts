@@ -151,6 +151,20 @@ export interface CreateReservationInput {
   specialRequests?: string;
 }
 
+export interface UpdateReservationInput {
+  id: string;
+  venueId: string;
+  guestName: string;
+  guestPhone: string;
+  partySize: number;
+  reservationDate: string;
+  reservationTime: string;
+  tableId?: string | null;
+  floorId?: string | null;
+  durationMinutes?: number;
+  specialRequests?: string;
+}
+
 export interface CreateGuestInput {
   venueId: string;
   fullName: string;

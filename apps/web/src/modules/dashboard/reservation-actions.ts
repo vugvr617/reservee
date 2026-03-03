@@ -9,6 +9,7 @@ import type {
   ReservationWithDetails,
   ReservationStatus,
   CreateReservationInput,
+  UpdateReservationInput,
   CreateGuestInput,
   TableOption,
 } from "./types";
@@ -370,6 +371,45 @@ export async function deleteReservation(
   } catch (error) {
     console.error("Error deleting reservation:", error);
     return { success: false, error: "Failed to delete reservation" };
+  }
+}
+
+// ============================================
+// Table-specific Reservations
+// ============================================
+
+export async function getUpcomingReservationsForTable(
+  tableId: string,
+  fromDate: string
+): Promise<{
+  success: boolean;
+  data?: ReservationWithDetails[];
+  error?: string;
+}> {
+  try {
+    const { data, error } = await supabase
+      .from("reservations")
+      .select(`
+        *,
+        tables ( table_identifier, max_capacity ),
+        floors ( floor_name )
+      `)
+      .eq("table_id", tableId)
+      .gt("reservation_date", fromDate)
+      .neq("status", "cancelled")
+      .neq("status", "no_show")
+      .neq("status", "completed")
+      .order("reservation_date", { ascending: true })
+      .order("reservation_time", { ascending: true })
+      .limit(20);
+
+    if (error) throw error;
+
+    const mapped = (data || []).map(mapReservationRow);
+    return { success: true, data: mapped };
+  } catch (error) {
+    console.error("Error fetching upcoming reservations for table:", error);
+    return { success: false, error: "Failed to fetch upcoming reservations" };
   }
 }
 
