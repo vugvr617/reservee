@@ -11,6 +11,7 @@ import { constrainToBorder } from "@/modules/dashboard/utils/collision";
 // Checkmark icon SVG path
 const CHECKMARK_ICON_PATH = "M20 6L9 17l-5-5";
 
+
 // Chair dimensions
 const CHAIR_THICKNESS = 12; // How thick the chair is (perpendicular to table edge)
 const CHAIR_GAP = 8; // Distance from table edge
@@ -149,6 +150,16 @@ interface TableShapeProps {
   capacity: number;
   isSelected: boolean;
   readOnly?: boolean;
+  reservationCount?: number;
+  onReadOnlyClick?: (tableId: string, screenPos: { x: number; y: number }) => void;
+}
+
+// Get fill/stroke colors based on reservation count (read-only mode only)
+function getReservationColors(count: number): { fill: string; stroke: string } {
+  if (count >= 5) return { fill: "#fee2e2", stroke: "#fca5a5" }; // Heavy load (red)
+  if (count >= 3) return { fill: "#fef9c3", stroke: "#fcd34d" }; // Moderate (amber)
+  if (count >= 1) return { fill: "#dcfce7", stroke: "#86efac" }; // Light load (green)
+  return { fill: "#e5e7eb", stroke: "#d1d5db" }; // Available (default)
 }
 
 export function TableShape({
@@ -164,6 +175,8 @@ export function TableShape({
   capacity,
   isSelected,
   readOnly = false,
+  reservationCount = 0,
+  onReadOnlyClick,
 }: TableShapeProps) {
   const groupRef = useRef<Konva.Group>(null);
   const [isHovered, setIsHovered] = useState(false);
@@ -180,21 +193,46 @@ export function TableShape({
     markTableDirty,
   } = useCanvasStore();
 
-  // Simplified colors matching the design
-  const fillColor = isSelected ? "#7dd3c0" : "#e5e7eb";
-  const strokeColor = isSelected ? "#5eead4" : "#d1d5db";
+  // Colors: in read-only mode, color by reservation count; in edit mode, default gray/selected teal
+  const reservationColors = readOnly ? getReservationColors(reservationCount) : null;
+  const fillColor = isSelected ? "#7dd3c0" : (reservationColors?.fill ?? "#e5e7eb");
+  const strokeColor = isSelected ? "#5eead4" : (reservationColors?.stroke ?? "#d1d5db");
   const strokeWidth = 2;
 
   const handleClick = (e: KonvaEventObject<MouseEvent | TouchEvent>) => {
-    if (readOnly) return; // Disable selection in read-only mode
+    if (readOnly) {
+      // In read-only mode, fire popup callback with screen position
+      if (onReadOnlyClick) {
+        e.cancelBubble = true;
+        const pos = groupRef.current?.getAbsolutePosition();
+        if (pos) {
+          const screenPos = {
+            x: pos.x + (width * stageScale) / 2,
+            y: pos.y,
+          };
+          onReadOnlyClick(id, screenPos);
+        }
+      }
+      return;
+    }
     if (currentTool === "select") {
       e.cancelBubble = true; // Prevent stage click
       selectTable(id);
     }
   };
 
+  // Get stage scale for screen position calculation
+  const stageScale = groupRef.current?.getStage()?.scaleX() ?? 1;
+
   const handleMouseEnter = (e: KonvaEventObject<MouseEvent>) => {
-    if (readOnly) return;
+    if (readOnly) {
+      // Show pointer cursor in read-only mode
+      const container = e.target.getStage()?.container();
+      if (container) {
+        container.style.cursor = "pointer";
+      }
+      return;
+    }
     if (currentTool === "select") {
       setIsHovered(true);
       const container = e.target.getStage()?.container();
@@ -450,6 +488,22 @@ export function TableShape({
           listening={false}
           lineCap="round"
           lineJoin="round"
+        />
+      )}
+
+      {/* Reservation count text below table name (read-only mode only) */}
+      {readOnly && reservationCount > 0 && (
+        <Text
+          text={`${reservationCount} ${reservationCount === 1 ? "reservation" : "reservations"}`}
+          fontSize={14}
+          fontFamily="Inter, sans-serif"
+          fontStyle="500"
+          fill={reservationCount >= 5 ? "#ef4444" : reservationCount >= 3 ? "#d97706" : "#22c55e"}
+          x={0}
+          y={height / 2 + 22}
+          width={width}
+          align="center"
+          listening={false}
         />
       )}
     </Group>

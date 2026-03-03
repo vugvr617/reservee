@@ -10,6 +10,7 @@ import {
   getReservationCountsByDateRange,
   getAvailableTablesForSlot,
   getAllTablesGroupedByFloor,
+  getUpcomingReservationsForTable,
   createReservation,
   updateReservationStatus,
   cancelReservation,
@@ -50,6 +51,21 @@ export function useReservationCounts(venueId: string, calendarMonth: Date) {
       return result.data || {};
     },
     enabled: !!venueId,
+  });
+}
+
+export function useUpcomingTableReservations(tableId: string | null) {
+  const today = format(new Date(), "yyyy-MM-dd");
+
+  return useQuery({
+    queryKey: ["table-reservations", tableId],
+    queryFn: async () => {
+      const result = await getUpcomingReservationsForTable(tableId!, today);
+      if (!result.success) throw new Error(result.error);
+      return result.data || [];
+    },
+    enabled: !!tableId,
+    placeholderData: keepPreviousData,
   });
 }
 

@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Settings2, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { useEffect, useState, useMemo, useCallback } from "react";
+import { PanelRightClose, PanelRightOpen } from "lucide-react";
+import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { NavigationSidebar } from "./NavigationSidebar";
 import { FloorTabs } from "./FloorTabs";
 import { FloorPlanCanvas } from "./Canvas/FloorPlanCanvas";
 import { EditModeModal } from "./EditModeModal";
 import { GuestListPanel } from "./GuestListPanel";
+import { TableReservationPopup } from "./TableReservationPopup";
 import { useCanvasStore } from "@/stores/canvas-store";
+import { useReservationsForDate } from "../hooks/use-reservations";
 import type { Floor, TableData } from "@/modules/dashboard/types";
 
 interface DashboardLayoutProps {
@@ -22,9 +25,52 @@ export function DashboardLayout({
   initialFloors,
   initialTables,
 }: DashboardLayoutProps) {
-  const { setFloors, setTables, setCurrentFloor, currentFloorId, setBorders, selectTable } = useCanvasStore();
+  const { setFloors, setTables, setCurrentFloor, currentFloorId, setBorders, selectTable, tables } = useCanvasStore();
   const [isEditMode, setIsEditMode] = useState(false);
   const [isGuestPanelCollapsed, setIsGuestPanelCollapsed] = useState(false);
+  const [popupTable, setPopupTable] = useState<{
+    id: string;
+    screenPos: { x: number; y: number };
+    name: string;
+  } | null>(null);
+
+  // Fetch today's reservations for table coloring
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const { data: todayReservations = [] } = useReservationsForDate(venueId, todayStr);
+
+  // Compute reservation counts per table (exclude cancelled/no_show/completed)
+  const tableReservationCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const r of todayReservations) {
+      if (r.tableId && r.status !== "cancelled" && r.status !== "no_show" && r.status !== "completed") {
+        counts[r.tableId] = (counts[r.tableId] || 0) + 1;
+      }
+    }
+    return counts;
+  }, [todayReservations]);
+
+  // Get today's reservations filtered for the popup table
+  const popupTodayReservations = useMemo(() => {
+    if (!popupTable) return [];
+    return todayReservations.filter((r) => r.tableId === popupTable.id);
+  }, [todayReservations, popupTable]);
+
+  // Handle table click from canvas
+  const handleTableClick = useCallback(
+    (tableId: string | null, screenPos: { x: number; y: number }) => {
+      if (!tableId) {
+        setPopupTable(null);
+        return;
+      }
+      const table = tables.find((t) => t.id === tableId);
+      setPopupTable({
+        id: tableId,
+        screenPos,
+        name: table?.table_identifier ?? "Table",
+      });
+    },
+    [tables]
+  );
 
   // Initialize store with server data only once on mount
   useEffect(() => {
@@ -83,7 +129,22 @@ export function DashboardLayout({
           <main className="flex-1 min-w-0 relative bg-white">
           {currentFloorId ? (
             <>
-              <FloorPlanCanvas readOnly={!isEditMode} />
+              <FloorPlanCanvas
+                readOnly={!isEditMode}
+                tableReservationCounts={!isEditMode ? tableReservationCounts : undefined}
+                onTableClick={!isEditMode ? handleTableClick : undefined}
+              />
+
+              {/* Table Reservation Popup */}
+              {!isEditMode && popupTable && (
+                <TableReservationPopup
+                  tableId={popupTable.id}
+                  tableName={popupTable.name}
+                  screenPos={popupTable.screenPos}
+                  todayReservations={popupTodayReservations}
+                  onClose={() => setPopupTable(null)}
+                />
+              )}
 
               {/* Panel Toggle Button - Floating */}
               {!isEditMode && (
@@ -127,6 +188,7 @@ export function DashboardLayout({
           isOpen={isEditMode}
           onClose={() => {
             selectTable(null);
+            setPopupTable(null);
             setIsEditMode(false);
           }}
           venueId={venueId}
