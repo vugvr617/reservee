@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import Select from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Bot, Loader2, Volume2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { saveStep3, fetchElevenLabsVoices } from "../actions";
