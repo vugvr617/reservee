@@ -117,7 +117,7 @@ export interface ReservationWithDetails {
   id: string;
   guestName: string;
   guestPhone: string;
-  guestId: string;
+  guestId: string | null;
   partySize: number;
   reservationDate: string;
   reservationTime: string;
@@ -136,6 +136,7 @@ export interface ReservationWithDetails {
   completedAt: string | null;
   cancelledAt: string | null;
   cancellationReason: string | null;
+  isWalkIn: boolean;
 }
 
 export interface CreateReservationInput {

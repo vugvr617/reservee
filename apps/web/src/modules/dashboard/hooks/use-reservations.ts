@@ -12,6 +12,7 @@ import {
   getAllTablesGroupedByFloor,
   getUpcomingReservationsForTable,
   createReservation,
+  createWalkIn,
   updateReservation,
   updateReservationStatus,
   cancelReservation,
@@ -138,6 +139,7 @@ export function useCreateReservation(venueId: string, currentDate: string) {
         completedAt: null,
         cancelledAt: null,
         cancellationReason: null,
+        isWalkIn: false,
       };
 
       queryClient.setQueryData<ReservationWithDetails[]>(
@@ -171,6 +173,85 @@ export function useCreateReservation(venueId: string, currentDate: string) {
       });
       queryClient.invalidateQueries({
         queryKey: ["available-tables", venueId],
+      });
+    },
+  });
+}
+
+export function useCreateWalkIn(venueId: string) {
+  const queryClient = useQueryClient();
+  const today = format(new Date(), "yyyy-MM-dd");
+
+  return useMutation({
+    mutationFn: (tableId: string) => createWalkIn(venueId, tableId),
+    onMutate: async (tableId) => {
+      await queryClient.cancelQueries({
+        queryKey: ["reservations", venueId, today],
+      });
+
+      const previousReservations = queryClient.getQueryData<ReservationWithDetails[]>([
+        "reservations",
+        venueId,
+        today,
+      ]);
+
+      const now = new Date();
+      const pad = (n: number) => n.toString().padStart(2, "0");
+      const time = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+      const optimisticWalkIn: ReservationWithDetails = {
+        id: `temp-walkin-${Date.now()}`,
+        guestName: "Walk-in",
+        guestPhone: "",
+        guestId: null,
+        partySize: 1,
+        reservationDate: today,
+        reservationTime: time,
+        reservationDatetime: `${today}T${time}:00`,
+        durationMinutes: 90,
+        status: "seated",
+        specialRequests: null,
+        internalNotes: null,
+        tableId,
+        floorId: null,
+        tableIdentifier: null,
+        floorName: null,
+        tableMaxCapacity: null,
+        createdAt: now.toISOString(),
+        seatedAt: now.toISOString(),
+        completedAt: null,
+        cancelledAt: null,
+        cancellationReason: null,
+        isWalkIn: true,
+      };
+
+      queryClient.setQueryData<ReservationWithDetails[]>(
+        ["reservations", venueId, today],
+        (old) =>
+          [...(old || []), optimisticWalkIn].sort((a, b) =>
+            a.reservationTime.localeCompare(b.reservationTime)
+          )
+      );
+
+      return { previousReservations };
+    },
+    onError: (_err, _tableId, context) => {
+      if (context?.previousReservations) {
+        queryClient.setQueryData(
+          ["reservations", venueId, today],
+          context.previousReservations
+        );
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["reservations", venueId, today],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["reservation-counts", venueId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["table-reservations"],
       });
     },
   });

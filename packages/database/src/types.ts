@@ -245,11 +245,12 @@ export type Database = {
           created_by: string | null
           duration_minutes: number | null
           floor_id: string | null
-          guest_id: string
+          guest_id: string | null
           guest_name: string
           guest_phone: string
           id: string
           internal_notes: string | null
+          is_walk_in: boolean
           party_size: number
           reservation_date: string
           reservation_datetime: string
@@ -270,11 +271,12 @@ export type Database = {
           created_by?: string | null
           duration_minutes?: number | null
           floor_id?: string | null
-          guest_id: string
+          guest_id?: string | null
           guest_name: string
           guest_phone: string
           id?: string
           internal_notes?: string | null
+          is_walk_in?: boolean
           party_size: number
           reservation_date: string
           reservation_datetime: string
@@ -295,11 +297,12 @@ export type Database = {
           created_by?: string | null
           duration_minutes?: number | null
           floor_id?: string | null
-          guest_id?: string
+          guest_id?: string | null
           guest_name?: string
           guest_phone?: string
           id?: string
           internal_notes?: string | null
+          is_walk_in?: boolean
           party_size?: number
           reservation_date?: string
           reservation_datetime?: string

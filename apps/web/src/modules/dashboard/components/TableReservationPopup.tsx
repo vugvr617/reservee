@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useMemo } from "react";
-import { X, CalendarDays, Loader2 } from "lucide-react";
+import { X, CalendarDays, Loader2, UserPlus, DoorOpen } from "lucide-react";
 import { format, parse, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -15,6 +15,10 @@ interface TableReservationPopupProps {
   todayReservations: ReservationWithDetails[];
   onClose: () => void;
   onReservationClick?: (reservation: ReservationWithDetails) => void;
+  onSeatWalkIn?: (tableId: string) => void;
+  onFreeTable?: (reservationId: string) => void;
+  isSeatingWalkIn?: boolean;
+  isFreeingTable?: boolean;
 }
 
 type DisplayStatus = "upcoming" | "seated" | "completed" | "cancelled";
@@ -96,8 +100,13 @@ function TimelineList({
 
           {/* Guest info */}
           <div className="flex-1 min-w-0 pl-2">
-            <div className="font-semibold text-gray-900 text-[12px] leading-tight truncate">
+            <div className="font-semibold text-gray-900 text-[12px] leading-tight truncate flex items-center gap-1.5">
               {r.guestName}
+              {r.isWalkIn && (
+                <span className="inline-flex items-center px-1 py-0 rounded text-[9px] font-semibold bg-amber-50 text-amber-600 border border-amber-200 leading-tight">
+                  Walk-in
+                </span>
+              )}
             </div>
             <div className="text-[10px] text-gray-400 mt-0.5 leading-tight">
               {r.partySize} {r.partySize === 1 ? "guest" : "guests"}
@@ -116,6 +125,10 @@ export function TableReservationPopup({
   todayReservations,
   onClose,
   onReservationClick,
+  onSeatWalkIn,
+  onFreeTable,
+  isSeatingWalkIn,
+  isFreeingTable,
 }: TableReservationPopupProps) {
   const popupRef = useRef<HTMLDivElement>(null);
   const { data: upcomingReservations = [], isLoading } = useUpcomingTableReservations(tableId);
@@ -132,6 +145,12 @@ export function TableReservationPopup({
     return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
   }, [upcomingReservations]);
 
+  // Find active walk-in on this table
+  const activeWalkIn = useMemo(
+    () => todayReservations.find((r) => r.isWalkIn && r.status === "seated"),
+    [todayReservations]
+  );
+
   // Click outside to dismiss
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -145,7 +164,7 @@ export function TableReservationPopup({
 
   // Smart positioning
   const popupWidth = 260;
-  const popupMaxHeight = 380;
+  const popupMaxHeight = 420;
   const offsetY = 8;
 
   let left = screenPos.x - popupWidth / 2;
@@ -243,6 +262,43 @@ export function TableReservationPopup({
             )}
           </div>
         </ScrollArea>
+
+        {/* Walk-In / Free Table action */}
+        {(onSeatWalkIn || onFreeTable) && (
+          <div className="px-2.5 py-2 border-t border-gray-100">
+            {activeWalkIn && onFreeTable ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full h-8 gap-1.5 text-[12px] border-gray-300 text-gray-600 hover:bg-gray-50"
+                onClick={() => onFreeTable(activeWalkIn.id)}
+                disabled={isFreeingTable}
+              >
+                {isFreeingTable ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <DoorOpen className="h-3.5 w-3.5" />
+                )}
+                Free Table
+              </Button>
+            ) : !activeWalkIn && onSeatWalkIn ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full h-8 gap-1.5 text-[12px] border-green-200 text-green-600 hover:bg-green-50"
+                onClick={() => onSeatWalkIn(tableId)}
+                disabled={isSeatingWalkIn}
+              >
+                {isSeatingWalkIn ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <UserPlus className="h-3.5 w-3.5" />
+                )}
+                Seat Walk-In
+              </Button>
+            ) : null}
+          </div>
+        )}
       </div>
     </div>
   );

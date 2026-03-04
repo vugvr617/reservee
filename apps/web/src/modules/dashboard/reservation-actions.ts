@@ -217,6 +217,65 @@ export async function createReservation(input: CreateReservationInput): Promise<
   }
 }
 
+// ============================================
+// Walk-In Actions
+// ============================================
+
+export async function createWalkIn(
+  venueId: string,
+  tableId: string
+): Promise<{ success: boolean; data?: ReservationWithDetails; error?: string }> {
+  try {
+    // Derive floorId from table
+    const { data: table } = await supabase
+      .from("tables")
+      .select("floor_id")
+      .eq("id", tableId)
+      .single();
+
+    const floorId = table?.floor_id || null;
+
+    // Build "now" values
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    const reservationDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const reservationTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    const reservationDatetime = `${reservationDate}T${reservationTime}:00`;
+
+    const { data, error } = await supabase
+      .from("reservations")
+      .insert({
+        venue_id: venueId,
+        guest_id: null,
+        guest_name: "Walk-in",
+        guest_phone: "",
+        party_size: 1,
+        reservation_date: reservationDate,
+        reservation_time: reservationTime,
+        reservation_datetime: reservationDatetime,
+        duration_minutes: 90,
+        table_id: tableId,
+        floor_id: floorId,
+        status: "seated",
+        is_walk_in: true,
+        seated_at: now.toISOString(),
+      })
+      .select(`
+        *,
+        tables ( table_identifier, max_capacity ),
+        floors ( floor_name )
+      `)
+      .single();
+
+    if (error) throw error;
+
+    return { success: true, data: mapReservationRow(data) };
+  } catch (error: unknown) {
+    console.error("Error creating walk-in:", error);
+    return { success: false, error: "Failed to seat walk-in" };
+  }
+}
+
 export async function updateReservation(input: UpdateReservationInput): Promise<{
   success: boolean;
   data?: ReservationWithDetails;
@@ -772,5 +831,6 @@ function mapReservationRow(r: any): ReservationWithDetails {
     completedAt: r.completed_at,
     cancelledAt: r.cancelled_at,
     cancellationReason: r.cancellation_reason,
+    isWalkIn: r.is_walk_in ?? false,
   };
 }

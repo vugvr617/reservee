@@ -11,7 +11,8 @@ import { EditModeModal } from "./EditModeModal";
 import { GuestListPanel } from "./GuestListPanel";
 import { TableReservationPopup } from "./TableReservationPopup";
 import { useCanvasStore } from "@/stores/canvas-store";
-import { useReservationsForDate } from "../hooks/use-reservations";
+import { useReservationsForDate, useCreateWalkIn, useUpdateReservationStatus } from "../hooks/use-reservations";
+import { toast } from "sonner";
 import type { Floor, TableData, ReservationWithDetails } from "@/modules/dashboard/types";
 
 interface DashboardLayoutProps {
@@ -38,6 +39,33 @@ export function DashboardLayout({
   // Fetch today's reservations for table coloring
   const todayStr = format(new Date(), "yyyy-MM-dd");
   const { data: todayReservations = [] } = useReservationsForDate(venueId, todayStr);
+
+  // Walk-in mutations
+  const walkInMutation = useCreateWalkIn(venueId);
+  const statusMutation = useUpdateReservationStatus(venueId, todayStr);
+
+  const handleSeatWalkIn = async (tableId: string) => {
+    const result = await walkInMutation.mutateAsync(tableId);
+    if (result.success) {
+      toast.success("Walk-in seated successfully");
+      setPopupTable(null);
+    } else {
+      toast.error(result.error || "Failed to seat walk-in");
+    }
+  };
+
+  const handleFreeTable = async (reservationId: string) => {
+    const result = await statusMutation.mutateAsync({
+      id: reservationId,
+      status: "completed",
+    });
+    if (result.success) {
+      toast.success("Table freed");
+      setPopupTable(null);
+    } else {
+      toast.error("Failed to free table");
+    }
+  };
 
   // Compute reservation counts per table (exclude cancelled/no_show/completed)
   const tableReservationCounts = useMemo(() => {
@@ -151,6 +179,10 @@ export function DashboardLayout({
                   todayReservations={popupTodayReservations}
                   onClose={() => setPopupTable(null)}
                   onReservationClick={handlePopupReservationClick}
+                  onSeatWalkIn={handleSeatWalkIn}
+                  onFreeTable={handleFreeTable}
+                  isSeatingWalkIn={walkInMutation.isPending}
+                  isFreeingTable={statusMutation.isPending}
                 />
               )}
 
