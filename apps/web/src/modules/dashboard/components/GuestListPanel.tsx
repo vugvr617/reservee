@@ -676,8 +676,13 @@ export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation
                           </div>
 
                           <div className="flex-1 min-w-0 pl-2.5">
-                            <div className="font-semibold text-gray-900 text-[13px] leading-tight truncate">
+                            <div className="font-semibold text-gray-900 text-[13px] leading-tight truncate flex items-center gap-1.5">
                               {reservation.guestName}
+                              {reservation.isWalkIn && (
+                                <span className="inline-flex items-center px-1.5 py-0 rounded text-[9px] font-semibold bg-amber-50 text-amber-600 border border-amber-200 leading-tight shrink-0">
+                                  Walk-in
+                                </span>
+                              )}
                             </div>
                             <div className="text-[11px] text-gray-400 mt-0.5 leading-tight">
                               {reservation.partySize} {reservation.partySize === 1 ? 'guest' : 'guests'}
@@ -708,6 +713,11 @@ export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${getStatusBadgeClasses(detailReservation.status)}`}>
                         {getStatusLabel(detailReservation.status)}
                       </span>
+                      {detailReservation.isWalkIn && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border bg-amber-50 text-amber-600 border-amber-200">
+                          Walk-in
+                        </span>
+                      )}
                     </div>
                     <DialogDescription className="text-sm text-gray-500">
                       {format(buildLocalDate(detailReservation.reservationDate), "EEEE, MMMM d")} at {formatTime24to12(detailReservation.reservationTime)}
