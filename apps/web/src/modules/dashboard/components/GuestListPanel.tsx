@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format, parse } from "date-fns";
-import { Plus, Calendar as CalendarIcon, Ban, Phone, Users, MapPin, Copy, Loader2, Check, Trash2, RotateCcw } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Ban, Phone, Users, MapPin, Copy, Loader2, Check, Trash2, RotateCcw, Pencil, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -57,6 +57,7 @@ import {
   useReservationCounts,
   useAvailableTables,
   useCreateReservation,
+  useUpdateReservation,
   useUpdateReservationStatus,
   useCancelReservation,
   useDeleteReservation,
@@ -65,6 +66,8 @@ import {
 interface GuestListPanelProps {
   isCollapsed: boolean;
   venueId: string;
+  externalDetailReservation?: ReservationWithDetails | null;
+  onExternalDetailConsumed?: () => void;
 }
 
 // ============================================
@@ -139,12 +142,13 @@ function getStatusBadgeClasses(status: ReservationStatus): string {
 // Component
 // ============================================
 
-export function GuestListPanel({ isCollapsed, venueId }: GuestListPanelProps) {
+export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation, onExternalDetailConsumed }: GuestListPanelProps) {
   const [detailReservation, setDetailReservation] = useState<ReservationWithDetails | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isNewReservationOpen, setIsNewReservationOpen] = useState(false);
+  const [editingReservation, setEditingReservation] = useState<ReservationWithDetails | null>(null);
 
   const dateStr = formatDateToISO(selectedDate);
 
@@ -153,9 +157,18 @@ export function GuestListPanel({ isCollapsed, venueId }: GuestListPanelProps) {
   const { data: reservationCounts = {} } = useReservationCounts(venueId, selectedDate);
 
   const createMutation = useCreateReservation(venueId, dateStr);
+  const updateMutation = useUpdateReservation(venueId, dateStr);
   const statusMutation = useUpdateReservationStatus(venueId, dateStr);
   const cancelMutation = useCancelReservation(venueId, dateStr);
   const deleteMutation = useDeleteReservation(venueId, dateStr);
+
+  // Open detail dialog when triggered externally (e.g. from table popup)
+  useEffect(() => {
+    if (externalDetailReservation) {
+      setDetailReservation(externalDetailReservation);
+      onExternalDetailConsumed?.();
+    }
+  }, [externalDetailReservation, onExternalDetailConsumed]);
 
   // --- React Hook Form ---
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -176,12 +189,13 @@ export function GuestListPanel({ isCollapsed, venueId }: GuestListPanelProps) {
   const watchTime = form.watch("reservationTime");
   const watchPartySize = form.watch("partySize");
 
-  // Available tables for dropdown
+  // Available tables for dropdown (don't filter by party size — user can see capacity in label)
   const { data: tableOptions = [] } = useAvailableTables(
     venueId,
     watchDate || undefined,
     watchTime || undefined,
-    watchPartySize || undefined
+    undefined,
+    editingReservation?.id
   );
 
   const tablesByFloor = useMemo(() => {
@@ -236,24 +250,62 @@ export function GuestListPanel({ isCollapsed, venueId }: GuestListPanelProps) {
     setDetailReservation(reservation);
   };
 
-  const onSubmitReservation = async (values: CreateReservationFormValues) => {
-    const result = await createMutation.mutateAsync({
-      venueId,
-      guestName: values.guestName.trim(),
-      guestPhone: values.guestPhone.trim(),
-      partySize: values.partySize,
-      reservationDate: values.reservationDate,
-      reservationTime: values.reservationTime,
-      tableId: values.tableId || null,
-      specialRequests: values.specialRequests?.trim() || undefined,
+  const handleOpenEditForm = (reservation: ReservationWithDetails) => {
+    setDetailReservation(null);
+    setEditingReservation(reservation);
+    form.reset({
+      guestName: reservation.guestName,
+      guestPhone: reservation.guestPhone,
+      partySize: reservation.partySize,
+      reservationDate: reservation.reservationDate,
+      reservationTime: reservation.reservationTime.slice(0, 5),
+      tableId: reservation.tableId || null,
+      specialRequests: reservation.specialRequests || "",
     });
+    setIsNewReservationOpen(true);
+  };
 
-    if (result.success) {
-      toast.success("Reservation created successfully");
-      setIsNewReservationOpen(false);
-      form.reset();
+  const onSubmitReservation = async (values: CreateReservationFormValues) => {
+    if (editingReservation) {
+      const result = await updateMutation.mutateAsync({
+        id: editingReservation.id,
+        venueId,
+        guestName: values.guestName.trim(),
+        guestPhone: values.guestPhone.trim(),
+        partySize: values.partySize,
+        reservationDate: values.reservationDate,
+        reservationTime: values.reservationTime,
+        tableId: values.tableId || null,
+        specialRequests: values.specialRequests?.trim() || undefined,
+      });
+
+      if (result.success) {
+        toast.success("Reservation updated successfully");
+        setIsNewReservationOpen(false);
+        setEditingReservation(null);
+        form.reset();
+      } else {
+        toast.error(result.error || "Failed to update reservation");
+      }
     } else {
-      toast.error(result.error || "Failed to create reservation");
+      const result = await createMutation.mutateAsync({
+        venueId,
+        guestName: values.guestName.trim(),
+        guestPhone: values.guestPhone.trim(),
+        partySize: values.partySize,
+        reservationDate: values.reservationDate,
+        reservationTime: values.reservationTime,
+        tableId: values.tableId || null,
+        specialRequests: values.specialRequests?.trim() || undefined,
+      });
+
+      if (result.success) {
+        toast.success("Reservation created successfully");
+        setIsNewReservationOpen(false);
+        form.reset();
+      } else {
+        toast.error(result.error || "Failed to create reservation");
+      }
     }
   };
 
@@ -278,6 +330,19 @@ export function GuestListPanel({ isCollapsed, venueId }: GuestListPanelProps) {
     if (result.success) {
       toast.success(`${reservation.guestName} marked as completed`);
       setDetailReservation((prev) => prev?.id === reservation.id ? { ...prev, status: "completed" } : prev);
+    } else {
+      toast.error(result.error || "Failed to update status");
+    }
+  };
+
+  const handleMarkAsNoShow = async (reservation: ReservationWithDetails) => {
+    const result = await statusMutation.mutateAsync({
+      id: reservation.id,
+      status: "no_show",
+    });
+    if (result.success) {
+      toast.success(`${reservation.guestName} marked as no-show`);
+      setDetailReservation((prev) => prev?.id === reservation.id ? { ...prev, status: "no_show" } : prev);
     } else {
       toast.error(result.error || "Failed to update status");
     }
@@ -350,7 +415,10 @@ export function GuestListPanel({ isCollapsed, venueId }: GuestListPanelProps) {
                 open={isNewReservationOpen}
                 onOpenChange={(open) => {
                   setIsNewReservationOpen(open);
-                  if (!open) form.reset();
+                  if (!open) {
+                    form.reset();
+                    setEditingReservation(null);
+                  }
                 }}
               >
                 <DialogTrigger asChild>
@@ -361,9 +429,11 @@ export function GuestListPanel({ isCollapsed, venueId }: GuestListPanelProps) {
                 </DialogTrigger>
               <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
-                  <DialogTitle>New Reservation</DialogTitle>
+                  <DialogTitle>{editingReservation ? "Edit Reservation" : "New Reservation"}</DialogTitle>
                   <DialogDescription>
-                    Create a new reservation for your guests.
+                    {editingReservation
+                      ? "Update the reservation details below."
+                      : "Create a new reservation for your guests."}
                   </DialogDescription>
                 </DialogHeader>
 
@@ -489,15 +559,17 @@ export function GuestListPanel({ isCollapsed, venueId }: GuestListPanelProps) {
                   <div className="flex gap-3 pt-2">
                     <Button
                       type="submit"
-                      disabled={createMutation.isPending}
+                      disabled={editingReservation ? updateMutation.isPending : createMutation.isPending}
                       className="flex-1 bg-green-500 hover:bg-green-600 text-white gap-2"
                     >
-                      {createMutation.isPending ? (
+                      {(editingReservation ? updateMutation.isPending : createMutation.isPending) ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : editingReservation ? (
+                        <Check className="h-4 w-4" />
                       ) : (
                         <Plus className="h-4 w-4" />
                       )}
-                      Create Reservation
+                      {editingReservation ? "Save Changes" : "Create Reservation"}
                     </Button>
                     <Button
                       type="button"
@@ -697,28 +769,83 @@ export function GuestListPanel({ isCollapsed, venueId }: GuestListPanelProps) {
                 </div>
 
                 {/* Footer Actions */}
-                <div className="px-5 py-4 border-t border-gray-100 flex items-center gap-2">
+                <div className="px-5 py-4 border-t border-gray-100 space-y-2.5">
                   {(detailReservation.status === "pending" || detailReservation.status === "confirmed") && (
                     <>
                       <Button
                         size="sm"
                         onClick={() => handleMarkAsSeated(detailReservation)}
-                        className="bg-green-500 hover:bg-green-600 text-white gap-1.5"
+                        className="w-full bg-green-500 hover:bg-green-600 text-white gap-1.5"
                         disabled={isMutating}
                       >
                         {statusMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                         Mark as Seated
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleCancelReservation(detailReservation)}
-                        className="gap-1.5 text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600"
-                        disabled={isMutating}
-                      >
-                        <Ban className="h-3.5 w-3.5" />
-                        Cancel Reservation
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenEditForm(detailReservation)}
+                          className="flex-1 gap-1.5"
+                          disabled={isMutating}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleMarkAsNoShow(detailReservation)}
+                          className="flex-1 gap-1.5 text-amber-600 border-amber-200 hover:bg-amber-50 hover:text-amber-700"
+                          disabled={isMutating}
+                        >
+                          <UserX className="h-3.5 w-3.5" />
+                          No Show
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleCancelReservation(detailReservation)}
+                          className="flex-1 gap-1.5 text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600"
+                          disabled={isMutating}
+                        >
+                          <Ban className="h-3.5 w-3.5" />
+                          Cancel
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 shrink-0 text-gray-400 hover:text-red-500 hover:bg-red-50"
+                              disabled={isMutating}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent className="bg-white">
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete reservation?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently delete the reservation for {detailReservation.guestName}. This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Keep it</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDeleteReservation(detailReservation)}
+                                className="bg-red-500 hover:bg-red-600 text-white"
+                              >
+                                {deleteMutation.isPending ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  "Delete"
+                                )}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     </>
                   )}
                   {detailReservation.status === "seated" && (
@@ -726,79 +853,202 @@ export function GuestListPanel({ isCollapsed, venueId }: GuestListPanelProps) {
                       <Button
                         size="sm"
                         onClick={() => handleMarkAsCompleted(detailReservation)}
-                        className="bg-green-500 hover:bg-green-600 text-white gap-1.5"
+                        className="w-full bg-green-500 hover:bg-green-600 text-white gap-1.5"
                         disabled={isMutating}
                       >
                         {statusMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                         Mark as Completed
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleCancelReservation(detailReservation)}
-                        className="gap-1.5 text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600"
-                        disabled={isMutating}
-                      >
-                        <Ban className="h-3.5 w-3.5" />
-                        Cancel Reservation
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenEditForm(detailReservation)}
+                          className="flex-1 gap-1.5"
+                          disabled={isMutating}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleCancelReservation(detailReservation)}
+                          className="flex-1 gap-1.5 text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600"
+                          disabled={isMutating}
+                        >
+                          <Ban className="h-3.5 w-3.5" />
+                          Cancel
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 shrink-0 text-gray-400 hover:text-red-500 hover:bg-red-50"
+                              disabled={isMutating}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent className="bg-white">
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete reservation?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently delete the reservation for {detailReservation.guestName}. This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Keep it</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDeleteReservation(detailReservation)}
+                                className="bg-red-500 hover:bg-red-600 text-white"
+                              >
+                                {deleteMutation.isPending ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  "Delete"
+                                )}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     </>
                   )}
                   {detailReservation.status === "completed" && (
-                    <p className="text-xs text-gray-400">This reservation has been completed.</p>
+                    <div className="flex items-center gap-2">
+                      <p className="flex-1 text-xs text-gray-400">This reservation has been completed.</p>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 shrink-0 text-gray-400 hover:text-red-500 hover:bg-red-50"
+                            disabled={isMutating}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="bg-white">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete reservation?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently delete the reservation for {detailReservation.guestName}. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Keep it</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteReservation(detailReservation)}
+                              className="bg-red-500 hover:bg-red-600 text-white"
+                            >
+                              {deleteMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                "Delete"
+                              )}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   )}
                   {detailReservation.status === "cancelled" && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleRestoreReservation(detailReservation)}
-                      className="gap-1.5 text-green-600 border-green-200 hover:bg-green-50 hover:text-green-700"
-                      disabled={isMutating}
-                    >
-                      {statusMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
-                      Restore Reservation
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleRestoreReservation(detailReservation)}
+                        className="flex-1 gap-1.5 text-green-600 border-green-200 hover:bg-green-50 hover:text-green-700"
+                        disabled={isMutating}
+                      >
+                        {statusMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                        Restore Reservation
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 shrink-0 text-gray-400 hover:text-red-500 hover:bg-red-50"
+                            disabled={isMutating}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="bg-white">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete reservation?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently delete the reservation for {detailReservation.guestName}. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Keep it</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteReservation(detailReservation)}
+                              className="bg-red-500 hover:bg-red-600 text-white"
+                            >
+                              {deleteMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                "Delete"
+                              )}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   )}
                   {detailReservation.status === "no_show" && (
-                    <p className="text-xs text-gray-400">Guest did not show up.</p>
-                  )}
-
-                  {/* Delete */}
-                  <div className="ml-auto">
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-50"
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 flex items-center gap-1.5">
+                        <p className="text-xs text-gray-400">Guest did not show up.</p>
+                        <button
+                          type="button"
+                          onClick={() => handleRestoreReservation(detailReservation)}
                           disabled={isMutating}
+                          className="text-xs text-green-600 hover:text-green-700 underline underline-offset-2 disabled:opacity-50"
                         >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent className="bg-white">
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete reservation?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This will permanently delete the reservation for {detailReservation.guestName}. This action cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Keep it</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => handleDeleteReservation(detailReservation)}
-                            className="bg-red-500 hover:bg-red-600 text-white"
+                          {statusMutation.isPending ? "Undoing..." : "Undo"}
+                        </button>
+                      </div>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 shrink-0 text-gray-400 hover:text-red-500 hover:bg-red-50"
+                            disabled={isMutating}
                           >
-                            {deleteMutation.isPending ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              "Delete"
-                            )}
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="bg-white">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete reservation?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently delete the reservation for {detailReservation.guestName}. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Keep it</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteReservation(detailReservation)}
+                              className="bg-red-500 hover:bg-red-600 text-white"
+                            >
+                              {deleteMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                "Delete"
+                              )}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  )}
                 </div>
               </DialogContent>
             )}

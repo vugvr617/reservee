@@ -217,6 +217,115 @@ export async function createReservation(input: CreateReservationInput): Promise<
   }
 }
 
+export async function updateReservation(input: UpdateReservationInput): Promise<{
+  success: boolean;
+  data?: ReservationWithDetails;
+  error?: string;
+}> {
+  try {
+    // Validate input with the same schema as create
+    const validation = createReservationSchema.safeParse({
+      guestName: input.guestName,
+      guestPhone: input.guestPhone,
+      partySize: input.partySize,
+      reservationDate: input.reservationDate,
+      reservationTime: input.reservationTime,
+      tableId: input.tableId,
+      specialRequests: input.specialRequests,
+    });
+
+    if (!validation.success) {
+      const firstError = validation.error.issues[0];
+      return { success: false, error: firstError?.message || "Invalid input" };
+    }
+
+    // Get or create guest (handles name/phone changes)
+    const guestResult = await getOrCreateGuest({
+      venueId: input.venueId,
+      fullName: input.guestName,
+      phoneNumber: input.guestPhone,
+    });
+    if (!guestResult.success || !guestResult.data) {
+      return { success: false, error: guestResult.error || "Failed to resolve guest" };
+    }
+    const guest = guestResult.data;
+
+    // Check table availability if table is specified (exclude current reservation)
+    if (input.tableId) {
+      const conflictCheck = await checkTableAvailability(
+        input.tableId,
+        input.reservationDate,
+        input.reservationTime,
+        input.durationMinutes || 90,
+        input.id
+      );
+      if (!conflictCheck.available) {
+        return { success: false, error: conflictCheck.reason || "Table is not available at this time" };
+      }
+    }
+
+    // Derive floorId from tableId if not provided
+    let floorId = input.floorId || null;
+    if (input.tableId && !floorId) {
+      const { data: table } = await supabase
+        .from("tables")
+        .select("floor_id")
+        .eq("id", input.tableId)
+        .single();
+      floorId = table?.floor_id || null;
+    }
+
+    // Build reservation_datetime
+    const reservationDatetime = `${input.reservationDate}T${input.reservationTime}:00`;
+
+    // Update reservation
+    const { data, error } = await supabase
+      .from("reservations")
+      .update({
+        guest_id: guest.id,
+        guest_name: input.guestName,
+        guest_phone: input.guestPhone,
+        party_size: input.partySize,
+        reservation_date: input.reservationDate,
+        reservation_time: input.reservationTime,
+        reservation_datetime: reservationDatetime,
+        duration_minutes: input.durationMinutes || 90,
+        table_id: input.tableId || null,
+        floor_id: floorId,
+        special_requests: input.specialRequests || null,
+      })
+      .eq("id", input.id)
+      .select(`
+        *,
+        tables ( table_identifier, max_capacity ),
+        floors ( floor_name )
+      `)
+      .single();
+
+    if (error) throw error;
+
+    return { success: true, data: mapReservationRow(data) };
+  } catch (error: unknown) {
+    console.error("Error updating reservation:", error);
+    const pgCode = (error as { code?: string })?.code;
+    const pgMessage = (error as { message?: string })?.message || "";
+
+    if (pgCode === "23514") {
+      if (pgMessage.includes("reservations_check")) {
+        return { success: false, error: "Reservation date & time must be in the future" };
+      }
+      if (pgMessage.includes("party_size")) {
+        return { success: false, error: "Party size must be at least 1" };
+      }
+      if (pgMessage.includes("duration_minutes")) {
+        return { success: false, error: "Duration must be greater than 0" };
+      }
+    }
+
+    return { success: false, error: "Failed to update reservation" };
+  }
+}
+
 export async function getReservationsForDate(
   venueId: string,
   date: string
@@ -303,6 +412,8 @@ export async function updateReservationStatus(
       if (cancellationReason) {
         updateData.cancellation_reason = cancellationReason;
       }
+    } else if (newStatus === "no_show") {
+      updateData.cancelled_at = now;
     } else if (newStatus === "confirmed") {
       updateData.confirmed_at = now;
     }
@@ -331,6 +442,20 @@ export async function updateReservationStatus(
         await supabase
           .from("guests")
           .update({ total_cancellations: (guest.total_cancellations || 0) + 1 })
+          .eq("id", data.guest_id);
+      }
+    }
+
+    if (newStatus === "no_show" && data) {
+      const { data: guest } = await supabase
+        .from("guests")
+        .select("total_no_shows")
+        .eq("id", data.guest_id)
+        .single();
+      if (guest) {
+        await supabase
+          .from("guests")
+          .update({ total_no_shows: (guest.total_no_shows || 0) + 1 })
           .eq("id", data.guest_id);
       }
     }
@@ -473,7 +598,8 @@ export async function getAvailableTablesForSlot(
   date: string,
   time: string,
   durationMinutes: number,
-  partySize?: number
+  partySize?: number,
+  excludeReservationId?: string
 ): Promise<{
   success: boolean;
   data?: TableOption[];
@@ -497,15 +623,21 @@ export async function getAvailableTablesForSlot(
     const requestedStartMin = timeToMinutes(time);
     const requestedEndMin = requestedStartMin + durationMinutes;
 
-    const { data: reservations, error: resError } = await supabase
+    let resQuery = supabase
       .from("reservations")
-      .select("table_id, reservation_datetime, duration_minutes")
+      .select("table_id, reservation_datetime, duration_minutes, id")
       .eq("venue_id", venueId)
       .eq("reservation_date", date)
       .neq("status", "cancelled")
       .neq("status", "no_show")
       .neq("status", "completed")
       .not("table_id", "is", null);
+
+    if (excludeReservationId) {
+      resQuery = resQuery.neq("id", excludeReservationId);
+    }
+
+    const { data: reservations, error: resError } = await resQuery;
 
     if (resError) throw resError;
 
