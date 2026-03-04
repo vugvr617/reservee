@@ -12,6 +12,7 @@ import {
   getAllTablesGroupedByFloor,
   getUpcomingReservationsForTable,
   createReservation,
+  updateReservation,
   updateReservationStatus,
   cancelReservation,
   deleteReservation,
@@ -20,6 +21,7 @@ import type {
   ReservationWithDetails,
   ReservationStatus,
   CreateReservationInput,
+  UpdateReservationInput,
 } from "../types";
 
 // ============================================
@@ -73,14 +75,15 @@ export function useAvailableTables(
   venueId: string,
   date?: string,
   time?: string,
-  partySize?: number
+  partySize?: number,
+  excludeReservationId?: string
 ) {
   return useQuery({
-    queryKey: ["available-tables", venueId, date, time, partySize],
+    queryKey: ["available-tables", venueId, date, time, partySize, excludeReservationId],
     queryFn: async () => {
       const result =
         date && time
-          ? await getAvailableTablesForSlot(venueId, date, time, 90, partySize)
+          ? await getAvailableTablesForSlot(venueId, date, time, 90, partySize, excludeReservationId)
           : await getAllTablesGroupedByFloor(venueId);
       if (!result.success) throw new Error(result.error);
       return result.data || [];
@@ -168,6 +171,82 @@ export function useCreateReservation(venueId: string, currentDate: string) {
       });
       queryClient.invalidateQueries({
         queryKey: ["available-tables", venueId],
+      });
+    },
+  });
+}
+
+export function useUpdateReservation(venueId: string, currentDate: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: UpdateReservationInput) => updateReservation(input),
+    onMutate: async (input) => {
+      // Cancel queries for both old date (currentDate) and new date
+      await queryClient.cancelQueries({
+        queryKey: ["reservations", venueId, currentDate],
+      });
+      if (input.reservationDate !== currentDate) {
+        await queryClient.cancelQueries({
+          queryKey: ["reservations", venueId, input.reservationDate],
+        });
+      }
+
+      const previousReservations = queryClient.getQueryData<ReservationWithDetails[]>([
+        "reservations",
+        venueId,
+        currentDate,
+      ]);
+
+      // Optimistically update the reservation in the cache
+      queryClient.setQueryData<ReservationWithDetails[]>(
+        ["reservations", venueId, currentDate],
+        (old) =>
+          (old || []).map((r) =>
+            r.id === input.id
+              ? {
+                  ...r,
+                  guestName: input.guestName,
+                  guestPhone: input.guestPhone,
+                  partySize: input.partySize,
+                  reservationDate: input.reservationDate,
+                  reservationTime: input.reservationTime,
+                  reservationDatetime: `${input.reservationDate}T${input.reservationTime}:00`,
+                  tableId: input.tableId || null,
+                  specialRequests: input.specialRequests || null,
+                }
+              : r
+          )
+      );
+
+      return { previousReservations };
+    },
+    onError: (_err, _input, context) => {
+      if (context?.previousReservations) {
+        queryClient.setQueryData(
+          ["reservations", venueId, currentDate],
+          context.previousReservations
+        );
+      }
+    },
+    onSettled: (_data, _error, input) => {
+      queryClient.invalidateQueries({
+        queryKey: ["reservations", venueId, currentDate],
+      });
+      // If date changed, also invalidate the new date
+      if (input.reservationDate !== currentDate) {
+        queryClient.invalidateQueries({
+          queryKey: ["reservations", venueId, input.reservationDate],
+        });
+      }
+      queryClient.invalidateQueries({
+        queryKey: ["reservation-counts", venueId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["available-tables", venueId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["table-reservations"],
       });
     },
   });

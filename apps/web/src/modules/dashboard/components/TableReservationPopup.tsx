@@ -14,6 +14,7 @@ interface TableReservationPopupProps {
   screenPos: { x: number; y: number };
   todayReservations: ReservationWithDetails[];
   onClose: () => void;
+  onReservationClick?: (reservation: ReservationWithDetails) => void;
 }
 
 type DisplayStatus = "upcoming" | "seated" | "completed" | "cancelled";
@@ -59,7 +60,13 @@ function StatusDot({ status }: { status: ReservationStatus }) {
   }
 }
 
-function TimelineList({ reservations }: { reservations: ReservationWithDetails[] }) {
+function TimelineList({
+  reservations,
+  onReservationClick,
+}: {
+  reservations: ReservationWithDetails[];
+  onReservationClick?: (reservation: ReservationWithDetails) => void;
+}) {
   if (reservations.length === 0) return null;
 
   return (
@@ -70,7 +77,8 @@ function TimelineList({ reservations }: { reservations: ReservationWithDetails[]
       {reservations.map((r) => (
         <div
           key={r.id}
-          className="relative flex items-center py-2.5"
+          className={`relative flex items-center py-2.5 ${onReservationClick ? "cursor-pointer rounded-lg hover:bg-gray-50 transition-colors" : ""}`}
+          onClick={() => onReservationClick?.(r)}
         >
           {/* Time */}
           <div className="w-[58px] shrink-0 text-right pr-1 whitespace-nowrap">
@@ -107,6 +115,7 @@ export function TableReservationPopup({
   screenPos,
   todayReservations,
   onClose,
+  onReservationClick,
 }: TableReservationPopupProps) {
   const popupRef = useRef<HTMLDivElement>(null);
   const { data: upcomingReservations = [], isLoading } = useUpcomingTableReservations(tableId);
@@ -192,7 +201,7 @@ export function TableReservationPopup({
               </div>
 
               {activeTodayReservations.length > 0 ? (
-                <TimelineList reservations={activeTodayReservations} />
+                <TimelineList reservations={activeTodayReservations} onReservationClick={onReservationClick} />
               ) : (
                 <p className="text-[11px] text-gray-400 px-1.5 py-2">
                   No reservations today
@@ -219,7 +228,7 @@ export function TableReservationPopup({
                     <p className="text-[10px] font-medium text-gray-500 px-1.5 mb-0.5">
                       {format(parseISO(date), "EEE, MMM d")}
                     </p>
-                    <TimelineList reservations={reservations} />
+                    <TimelineList reservations={reservations} onReservationClick={onReservationClick} />
                   </div>
                 ))}
               </div>

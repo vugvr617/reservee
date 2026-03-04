@@ -12,7 +12,7 @@ import { GuestListPanel } from "./GuestListPanel";
 import { TableReservationPopup } from "./TableReservationPopup";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useReservationsForDate } from "../hooks/use-reservations";
-import type { Floor, TableData } from "@/modules/dashboard/types";
+import type { Floor, TableData, ReservationWithDetails } from "@/modules/dashboard/types";
 
 interface DashboardLayoutProps {
   venueId: string;
@@ -33,6 +33,7 @@ export function DashboardLayout({
     screenPos: { x: number; y: number };
     name: string;
   } | null>(null);
+  const [externalDetailReservation, setExternalDetailReservation] = useState<ReservationWithDetails | null>(null);
 
   // Fetch today's reservations for table coloring
   const todayStr = format(new Date(), "yyyy-MM-dd");
@@ -54,6 +55,12 @@ export function DashboardLayout({
     if (!popupTable) return [];
     return todayReservations.filter((r) => r.tableId === popupTable.id);
   }, [todayReservations, popupTable]);
+
+  // Handle reservation click from table popup
+  const handlePopupReservationClick = useCallback((reservation: ReservationWithDetails) => {
+    setPopupTable(null);
+    setExternalDetailReservation(reservation);
+  }, []);
 
   // Handle table click from canvas
   const handleTableClick = useCallback(
@@ -143,6 +150,7 @@ export function DashboardLayout({
                   screenPos={popupTable.screenPos}
                   todayReservations={popupTodayReservations}
                   onClose={() => setPopupTable(null)}
+                  onReservationClick={handlePopupReservationClick}
                 />
               )}
 
@@ -179,6 +187,8 @@ export function DashboardLayout({
             <GuestListPanel
               isCollapsed={isGuestPanelCollapsed}
               venueId={venueId}
+              externalDetailReservation={externalDetailReservation}
+              onExternalDetailConsumed={() => setExternalDetailReservation(null)}
             />
           )}
         </div>
