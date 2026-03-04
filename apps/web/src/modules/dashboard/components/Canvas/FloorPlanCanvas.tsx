@@ -15,9 +15,11 @@ import { deleteTable as deleteTableAction } from "@/modules/dashboard/actions";
 
 interface FloorPlanCanvasProps {
   readOnly?: boolean;
+  tableReservationCounts?: Record<string, number>;
+  onTableClick?: (tableId: string | null, screenPos: { x: number; y: number }) => void;
 }
 
-export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
+export function FloorPlanCanvas({ readOnly = false, tableReservationCounts, onTableClick }: FloorPlanCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -280,10 +282,14 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
 
   // Stage click
   const handleStageClick = async (e: KonvaEventObject<MouseEvent | TouchEvent>) => {
-    if (readOnly) return;
-    
     // Only handle clicks on stage background
     if (e.target !== e.target.getStage()) return;
+
+    if (readOnly) {
+      // Dismiss popup when clicking empty area
+      onTableClick?.(null, { x: 0, y: 0 });
+      return;
+    }
 
     if (currentTool === "table") {
       await handleAddTable(e);
@@ -556,6 +562,8 @@ export function FloorPlanCanvas({ readOnly = false }: FloorPlanCanvasProps) {
                 capacity={table.max_capacity ?? 4}
                 isSelected={table.id === selectedTableId}
                 readOnly={readOnly}
+                reservationCount={readOnly ? (tableReservationCounts?.[table.id] ?? 0) : undefined}
+                onReadOnlyClick={readOnly ? onTableClick ?? undefined : undefined}
               />
             ))}
         </Layer>

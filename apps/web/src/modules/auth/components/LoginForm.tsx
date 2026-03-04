@@ -38,9 +38,10 @@ export default function LoginForm() {
         return;
       }
 
-      // Successful login - redirect to the page user was trying to access or dashboard
+      // Successful login - use full page navigation to ensure the session cookie
+      // is properly included in the server component request
       const redirectTo = searchParams.get("from") || "/dashboard";
-      router.push(redirectTo);
+      window.location.href = redirectTo;
     } catch (err) {
       setError("An error occurred. Please try again.");
       setIsLoading(false);

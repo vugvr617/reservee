@@ -245,6 +245,15 @@ if (deleteResult.success) {
 }
 ```
 
+## Icons
+
+- **Always use [lucide-react](https://lucide.dev/) for icons** — never use other icon libraries (e.g., react-icons, heroicons, phosphor)
+- Import icons from `"lucide-react"`:
+  ```tsx
+  import { Users, Calendar, Settings } from "lucide-react";
+  ```
+- For Konva canvas elements where React components can't be used, use lucide SVG path data directly with Konva `<Path>` elements (copy the `d` attribute from the lucide icon source)
+
 ## Build & Lint Rules
 
 - **Never run `next build` or `npm run build` at the end of a task** — the dev server handles incremental compilation. Running a full build is slow and unnecessary during development.

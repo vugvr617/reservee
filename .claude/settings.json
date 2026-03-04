@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc --noEmit)",
+      "Bash(npx turbo dev --filter=@reservee/web)",
+      "Bash(node -e \":*)",
+      "Bash(source .env)",
+      "Bash(source apps/web/.env)",
+      "Bash(echo \"URL: $NEXT_PUBLIC_SUPABASE_URL\")"
+    ]
+  }
+}
