@@ -4,7 +4,8 @@ import { supabase } from "@/lib/supabase";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { Step1FormData, Step2FormData, Step3FormData, VenueData } from "./types";
-import { vapi, getVoiceConfig, generateGreeting, VoiceOption } from "@/lib/vapi";
+import { VoiceOption } from "@/lib/vapi";
+import { createVapiAssistant } from "@/lib/domain/vapi/service";
 
 async function getSession() {
   const session = await auth.api.getSession({
@@ -189,14 +190,11 @@ export async function saveStep3(formData: Step3FormData): Promise<{ success: boo
       return { success: false, error: "Venue not found" };
     }
 
-    // Generate greeting message (for later use in Step 4)
-    const greeting = formData.customGreeting || generateGreeting(venue.venueName || "your venue");
-
     // Build AI config object
     const aiConfig = {
       ai_voice_provider: 'elevenlabs' as const,
       ai_voice_id: formData.voiceId,
-      ai_custom_greeting: greeting,
+      ai_custom_greeting: formData.customGreeting || null,
     };
 
     // ONLY save AI config - NO assistant creation yet!
@@ -455,48 +453,10 @@ export async function purchasePhoneNumber(
     // Extract country code from phone number
     const phoneCountry = extractCountryCode(hardcodedPhoneNumber);
 
-    // STEP 2: Create Vapi Assistant with COMPLETE info
-    const scheduleDescription = venue.schedule
-      ?.filter((slot) => !slot.closed)
-      .map((slot) => `${slot.day}: ${slot.open} - ${slot.close}`)
-      .join(", ") || "Contact us for hours";
+    // STEP 2: Create Vapi Assistant
+    const assistant = await createVapiAssistant(venue, aiConfig, fallbackPhone);
 
-    const assistant = await vapi.assistants.create({
-      name: `${venue.venueName} AI Receptionist`,
-      voice: getVoiceConfig(aiConfig.ai_voice_id),
-      transcriber: {
-        provider: "deepgram",
-        model: "nova-2",
-        language: "en-US",
-      },
-      model: {
-        provider: "openai",
-        model: "gpt-4",
-        messages: [
-          {
-            role: "system",
-            content: `You are a professional AI receptionist for ${venue.venueName}, a restaurant/venue.
-
-Location: ${venue.address}, ${venue.city}, ${venue.country}
-Opening Hours: ${scheduleDescription}
-Manager: ${venue.managerName} (${venue.managerEmail})
-Phone Number: ${hardcodedPhoneNumber}
-Fallback Phone: ${fallbackPhone}
-
-Your responsibilities:
-1. Greet callers warmly and professionally
-2. Answer questions about hours, location, and general information
-3. Help customers make reservations
-4. If you cannot handle a request or customer asks for a person, politely offer to transfer to ${fallbackPhone}
-
-Keep responses concise and helpful. Maintain a professional and friendly tone in all interactions.`,
-          },
-        ],
-      },
-      firstMessage: aiConfig.ai_custom_greeting || undefined,
-    });
-
-    console.log("✅ Created Vapi assistant:", assistant.id);
+    console.log("Created Vapi assistant:", assistant.id);
 
     // STEP 3: Import number to Vapi
     console.log("📞 Importing to Vapi with phone number:", hardcodedPhoneNumber);

@@ -97,7 +97,7 @@ export function DashboardLayout({
         setPopupTable(null);
         return;
       }
-      const table = tables.find((t) => t.id === tableId);
+      const table = tables.find((t: { id: string; table_identifier: string }) => t.id === tableId);
       setPopupTable({
         id: tableId,
         screenPos,

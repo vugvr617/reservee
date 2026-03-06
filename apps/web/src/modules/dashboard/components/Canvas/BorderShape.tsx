@@ -51,7 +51,7 @@ export function BorderShape({
       height: newHeight,
     });
 
-    const border = borders.find((b) => b.id === id);
+    const border = borders.find((b: Border) => b.id === id);
     if (border) {
       const { updateFloorBorder } = await import("@/modules/dashboard/actions");
       try {

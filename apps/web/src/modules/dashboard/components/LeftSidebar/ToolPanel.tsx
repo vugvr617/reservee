@@ -36,7 +36,7 @@ export function ToolPanel() {
     currentFloorId,
   } = useCanvasStore();
 
-  const hasBorder = borders.some((b) => b.floorId === currentFloorId);
+  const hasBorder = borders.some((b: { floorId: string }) => b.floorId === currentFloorId);
 
   return (
     <div className="flex flex-col gap-5 p-5">

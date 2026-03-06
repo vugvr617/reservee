@@ -32,7 +32,7 @@ export function getVoiceConfig(voiceId: string) {
 }
 
 export function generateGreeting(venueName: string): string {
-  return `Hello! Thank you for calling ${venueName}. How can I help you today?`;
+  return `Hello, it's ${venueName}, how can I help you?`;
 }
 
 // Map language codes to flag emojis

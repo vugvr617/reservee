@@ -12,6 +12,7 @@ import { ZoomControls } from "./ZoomControls";
 import { KeyboardShortcutsHelp } from "./KeyboardShortcutsHelp";
 import { ZOOM_STEP, MIN_ZOOM, MAX_ZOOM } from "@/modules/dashboard/constants";
 import { deleteTable as deleteTableAction } from "@/modules/dashboard/actions";
+import type { CanvasTable, Border, Floor } from "@/modules/dashboard/types";
 
 interface FloorPlanCanvasProps {
   readOnly?: boolean;
@@ -102,7 +103,7 @@ export function FloorPlanCanvas({ readOnly = false, tableReservationCounts, onTa
         if (e.code === 'Delete' || e.code === 'Backspace') {
           e.preventDefault();
           if (selectedTableId) {
-            const table = tables.find(t => t.id === selectedTableId);
+            const table = tables.find((t: CanvasTable) => t.id === selectedTableId);
             if (table) {
               pushHistory({
                 type: 'table_delete',
@@ -202,7 +203,7 @@ export function FloorPlanCanvas({ readOnly = false, tableReservationCounts, onTa
   useEffect(() => {
     if (!currentFloorId) return;
 
-    const border = borders.find(b => b.floorId === currentFloorId);
+    const border = borders.find((b: Border) => b.floorId === currentFloorId);
     if (border && stageRef.current) {
       const padding = 50;
       const scaleX = (stageSize.width - padding * 2) / border.width;
@@ -247,7 +248,7 @@ export function FloorPlanCanvas({ readOnly = false, tableReservationCounts, onTa
   const getCanvasBounds = () => {
     if (tables.length === 0) return { width: 2000, height: 1500 };
     let maxX = 0, maxY = 0;
-    tables.forEach(t => {
+    tables.forEach((t: CanvasTable) => {
       maxX = Math.max(maxX, t.position_x + t.width + 200);
       maxY = Math.max(maxY, t.position_y + t.height + 200);
     });
@@ -304,7 +305,7 @@ export function FloorPlanCanvas({ readOnly = false, tableReservationCounts, onTa
     const stage = stageRef.current;
     if (!stage || !currentFloorId) return;
 
-    const hasBorder = borders.some(b => b.floorId === currentFloorId);
+    const hasBorder = borders.some((b: Border) => b.floorId === currentFloorId);
     if (!hasBorder) return;
 
     const pointer = stage.getPointerPosition();
@@ -314,7 +315,7 @@ export function FloorPlanCanvas({ readOnly = false, tableReservationCounts, onTa
     const y = (pointer.y - stagePosition.y) / stageScale;
 
     const { DEFAULT_TABLE_SIZES } = await import("@/modules/dashboard/constants");
-    const size = DEFAULT_TABLE_SIZES[useCanvasStore.getState().tableShape];
+    const size = (DEFAULT_TABLE_SIZES as Record<string, { width: number; height: number; minCapacity: number; maxCapacity: number }>)[useCanvasStore.getState().tableShape];
 
     const { snapToGrid, gridSize } = useCanvasStore.getState();
     const finalX = snapToGrid ? Math.round(x / gridSize) * gridSize : x;
@@ -323,14 +324,14 @@ export function FloorPlanCanvas({ readOnly = false, tableReservationCounts, onTa
     const { createTable } = await import("@/modules/dashboard/actions");
     const { addTable } = useCanvasStore.getState();
 
-    const currentFloor = floors.find(f => f.id === currentFloorId);
+    const currentFloor = floors.find((f: Floor) => f.id === currentFloorId);
     if (!currentFloor) return;
 
     // Generate unique table identifier
-    const venueFloorIds = floors.filter(f => f.venue_id === currentFloor.venue_id).map(f => f.id);
-    const venueTables = tables.filter(t => venueFloorIds.includes(t.floor_id));
+    const venueFloorIds = floors.filter((f: Floor) => f.venue_id === currentFloor.venue_id).map((f: Floor) => f.id);
+    const venueTables = tables.filter((t: CanvasTable) => venueFloorIds.includes(t.floor_id));
     let maxTableNum = 0;
-    venueTables.forEach(t => {
+    venueTables.forEach((t: CanvasTable) => {
       const match = t.table_identifier.match(/^Table (\d+)$/);
       if (match) maxTableNum = Math.max(maxTableNum, parseInt(match[1], 10));
     });
@@ -450,7 +451,7 @@ export function FloorPlanCanvas({ readOnly = false, tableReservationCounts, onTa
     }
   };
 
-  const hasBorder = borders.some(b => b.floorId === currentFloorId);
+  const hasBorder = borders.some((b: Border) => b.floorId === currentFloorId);
 
   // Cursor style
   const getCursor = () => {
@@ -516,8 +517,8 @@ export function FloorPlanCanvas({ readOnly = false, tableReservationCounts, onTa
         {/* Borders */}
         <Layer>
           {borders
-            .filter(border => border.floorId === currentFloorId)
-            .map(border => (
+            .filter((border: Border) => border.floorId === currentFloorId)
+            .map((border: Border) => (
               <BorderShape
                 key={border.id}
                 {...border}
@@ -546,8 +547,8 @@ export function FloorPlanCanvas({ readOnly = false, tableReservationCounts, onTa
         {/* Tables */}
         <Layer>
           {tables
-            .filter(table => table.floor_id === currentFloorId)
-            .map(table => (
+            .filter((table: CanvasTable) => table.floor_id === currentFloorId)
+            .map((table: CanvasTable) => (
               <TableShape
                 key={table.id}
                 id={table.id}
