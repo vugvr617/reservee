@@ -190,9 +190,9 @@ export const useCanvasStore = create<CanvasStore>((set) => ({
 
   clearDirtyTables: () => set({ dirtyTableIds: new Set() }),
 
-  getDirtyTables: () => {
-    const state = useCanvasStore.getState();
-    return state.tables.filter((table) => state.dirtyTableIds.has(table.id));
+  getDirtyTables: (): CanvasTable[] => {
+    const state: CanvasStore = useCanvasStore.getState();
+    return state.tables.filter((table: CanvasTable) => state.dirtyTableIds.has(table.id));
   },
 
   // Border actions
