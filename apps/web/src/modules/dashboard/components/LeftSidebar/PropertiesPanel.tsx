@@ -20,7 +20,7 @@ export function PropertiesPanel() {
     currentFloorId
   } = useCanvasStore();
 
-  const selectedTable = tables.find((t) => t.id === selectedTableId);
+  const selectedTable = tables.find((t: { id: string }) => t.id === selectedTableId);
 
   const [tableIdentifier, setTableIdentifier] = useState("");
   const [minCapacity, setMinCapacity] = useState(1);

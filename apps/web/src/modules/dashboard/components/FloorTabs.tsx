@@ -84,7 +84,7 @@ export function FloorTabs({ venueId, onEditClick }: FloorTabsProps) {
     <div className="flex items-center justify-between gap-3 bg-white px-4 py-2">
       {/* Floor Tabs */}
       <div className="flex items-center gap-2">
-        {floors.map((floor) => {
+        {floors.map((floor: { id: string; floor_name: string; floor_order: number; venue_id: string }) => {
           const isActive = floor.id === currentFloorId;
           const isEditing = editingFloorId === floor.id;
 

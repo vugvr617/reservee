@@ -48,9 +48,9 @@ export default function Step3AIReceptionist({
         setVoices(fetchedVoices);
 
         // Pre-select voice if already saved
-        if (initialData?.voiceId) {
+        if (initialData?.aiConfig?.ai_voice_id) {
           const savedVoice = fetchedVoices.find(
-            (v) => v.voiceId === initialData.voiceId
+            (v) => v.voiceId === initialData.aiConfig!.ai_voice_id
           );
           if (savedVoice) {
             setSelectedVoice(savedVoice);
@@ -129,43 +129,42 @@ export default function Step3AIReceptionist({
             </div>
           ) : (
             <Select
-              data={voices.map((voice) => {
-                const MAX_FLAGS = 20;
-                const allLanguageFlags = voice.verifiedLanguages
-                  .map((lang) => getLanguageFlag(lang.locale))
-                  .filter((flag) => flag !== ''); // Remove empty strings
-
-                const languageFlags = allLanguageFlags.slice(0, MAX_FLAGS);
-                const remainingCount = allLanguageFlags.length - MAX_FLAGS;
-
-                // Default to USA flag if no language data
-                const languages = languageFlags.length > 0 ? languageFlags : ['🇺🇸'];
-
-                // Add "+N" indicator if there are more languages
-                if (remainingCount > 0) {
-                  languages.push(`+${remainingCount}`);
-                }
-
-                return {
-                  id: voice.voiceId,
-                  label: voice.name,
-                  value: voice.voiceId,
-                  description: voice.description,
-                  icon: voice.gender === "female" ? "👩" : "👨",
-                  languages,
-                  custom: (
-                    <div onClick={(e) => e.stopPropagation()}>
-                      <VoicePreview voice={voice} />
-                    </div>
-                  ),
-                };
-              })}
-              defaultValue={selectedVoice?.voiceId}
-              onChange={(voiceId) => {
+              value={selectedVoice?.voiceId}
+              onValueChange={(voiceId: string) => {
                 const voice = voices.find((v) => v.voiceId === voiceId);
                 if (voice) setSelectedVoice(voice);
               }}
-            />
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a voice..." />
+              </SelectTrigger>
+              <SelectContent className="bg-white">
+                {voices.map((voice) => {
+                  const MAX_FLAGS = 20;
+                  const allLanguageFlags = voice.verifiedLanguages
+                    .map((lang) => getLanguageFlag(lang.locale))
+                    .filter((flag) => flag !== '');
+
+                  const languageFlags = allLanguageFlags.slice(0, MAX_FLAGS);
+                  const remainingCount = allLanguageFlags.length - MAX_FLAGS;
+
+                  const flags = languageFlags.length > 0 ? languageFlags : ['🇺🇸'];
+
+                  return (
+                    <SelectItem key={voice.voiceId} value={voice.voiceId}>
+                      <div className="flex items-center gap-2">
+                        <span>{voice.gender === "female" ? "👩" : "👨"}</span>
+                        <span className="font-medium">{voice.name}</span>
+                        <span className="text-xs text-gray-400 ml-1">
+                          {flags.join(" ")}
+                          {remainingCount > 0 && ` +${remainingCount}`}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
           )}
         </div>
 
