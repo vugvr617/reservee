@@ -34,7 +34,7 @@ export function EditModeModal({ isOpen, onClose, venueId }: EditModeModalProps) 
 
     try {
       // Save all dirty tables in parallel
-      const savePromises = dirtyTables.map((table) =>
+      const savePromises = dirtyTables.map((table: { id: string; position_x: number; position_y: number; width: number; height: number }) =>
         updateTable(table.id, {
           positionX: table.position_x,
           positionY: table.position_y,

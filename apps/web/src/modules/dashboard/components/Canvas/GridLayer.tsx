@@ -2,6 +2,7 @@
 
 import { Circle } from "react-konva";
 import { useCanvasStore } from "@/stores/canvas-store";
+import type { Border } from "@/modules/dashboard/types";
 
 interface GridLayerProps {
   width: number;
@@ -15,7 +16,7 @@ export function GridLayer({ width, height, readOnly = false }: GridLayerProps) {
   const dots: React.ReactNode[] = [];
 
   // Get the border for the current floor
-  const border = borders.find(b => b.floorId === currentFloorId);
+  const border = borders.find((b: Border) => b.floorId === currentFloorId);
 
   if (!border) {
     return null; // No grid if no border exists

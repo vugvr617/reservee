@@ -7,6 +7,7 @@ import type { KonvaEventObject } from "konva/lib/Node";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { TABLE_STATUS_COLORS } from "@/modules/dashboard/constants";
 import { constrainToBorder } from "@/modules/dashboard/utils/collision";
+import type { Border } from "@/modules/dashboard/types";
 
 // Checkmark icon SVG path
 const CHECKMARK_ICON_PATH = "M20 6L9 17l-5-5";
@@ -261,7 +262,7 @@ export function TableShape({
     const node = e.target;
     if (!node) return;
 
-    const border = borders.find((b) => b.floorId === currentFloorId);
+    const border = borders.find((b: Border) => b.floorId === currentFloorId);
     if (!border) return;
 
     const nodeX = node.x();
@@ -281,7 +282,7 @@ export function TableShape({
     let newX = node.x();
     let newY = node.y();
 
-    const border = borders.find((b) => b.floorId === currentFloorId);
+    const border = borders.find((b: Border) => b.floorId === currentFloorId);
 
     // Final constraint check
     const constrained = constrainToBorder(newX, newY, width, height, border);
