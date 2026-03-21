@@ -69,20 +69,20 @@ export const VAPI_TOOLS = [
     function: {
       name: "cancel_reservation",
       description:
-        "Cancel an existing reservation. Look up by guest name and date.",
+        "Cancel an existing reservation. The system will first try to find the reservation by the caller's phone number. Only ask for the guest name if the phone lookup fails.",
       parameters: {
         type: "object",
         properties: {
-          guest_name: {
-            type: "string",
-            description: "Name the reservation is under",
-          },
           date: {
             type: "string",
             description: "Date of the reservation in YYYY-MM-DD format",
           },
+          guest_name: {
+            type: "string",
+            description: "Name the reservation is under (optional if phone number matches)",
+          },
         },
-        required: ["guest_name", "date"],
+        required: ["date"],
       },
     },
   },
@@ -91,17 +91,17 @@ export const VAPI_TOOLS = [
     function: {
       name: "modify_reservation",
       description:
-        "Modify an existing reservation. Look up by guest name and original date, then update with new details. Only provide fields that are changing.",
+        "Modify an existing reservation. The system will first try to find the reservation by the caller's phone number. Only ask for the guest name if the phone lookup fails. Only provide fields that are changing.",
       parameters: {
         type: "object",
         properties: {
-          guest_name: {
-            type: "string",
-            description: "Name the reservation is under",
-          },
           original_date: {
             type: "string",
             description: "Current date of the reservation in YYYY-MM-DD format",
+          },
+          guest_name: {
+            type: "string",
+            description: "Name the reservation is under (optional if phone number matches)",
           },
           new_date: {
             type: "string",
@@ -115,8 +115,13 @@ export const VAPI_TOOLS = [
             type: "number",
             description: "New number of guests (if changing)",
           },
+          special_requests: {
+            type: "string",
+            description:
+              "Any special requests such as dietary needs, celebrations, or seating preferences",
+          },
         },
-        required: ["guest_name", "original_date"],
+        required: ["original_date"],
       },
     },
   },
@@ -125,20 +130,20 @@ export const VAPI_TOOLS = [
     function: {
       name: "get_reservations",
       description:
-        "Look up existing reservations for a guest by name or phone number on a specific date.",
+        "Look up existing reservations. The system will first try to find reservations by the caller's phone number. Only ask for the guest name if the phone lookup fails.",
       parameters: {
         type: "object",
         properties: {
-          guest_name: {
-            type: "string",
-            description: "Name to search for",
-          },
           date: {
             type: "string",
             description: "Date to look up in YYYY-MM-DD format",
           },
+          guest_name: {
+            type: "string",
+            description: "Name to search for (optional if phone number matches)",
+          },
         },
-        required: ["guest_name", "date"],
+        required: ["date"],
       },
     },
   },
