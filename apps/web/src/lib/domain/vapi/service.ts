@@ -121,13 +121,13 @@ Then transfer the call.
 ---
 
 ## Fillers and Backchannels (Naturalness)
-Use short acknowledgements (e.g., "got it", "okay", "right") sparingly — no more than once per assistant turn.
+When using tools, you may say one brief filler (e.g., "let me check") before the FIRST tool call in a conversation. After that, call tools silently — no more waiting phrases.
 
-Only use "thinking" fillers (e.g., "one sec", "let me check", "hang on") immediately before calling a tool or when you genuinely need a moment.
+Use short acknowledgements (e.g., "got it", "okay") only when responding to something the caller said.
 
-Do not use fillers in the final reservation confirmation. Keep confirmations clean and explicit.
+Never stack fillers (e.g., avoid "um, yeah, okay").
 
-Never stack fillers (e.g., avoid "um, yeah, okay").`;
+Do not use fillers in the final reservation confirmation. Keep confirmations clean and direct.`;
 }
 
 export async function createVapiAssistant(

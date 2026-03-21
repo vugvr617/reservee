@@ -8,6 +8,23 @@ import {
   cancelReservation,
 } from "@/lib/domain/reservations/service";
 
+function formatDateSpoken(dateStr: string): string {
+  const date = new Date(dateStr + "T00:00:00");
+  return date.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+function formatTimeSpoken(timeStr: string): string {
+  const [hours, minutes] = timeStr.split(":").map(Number);
+  const period = hours >= 12 ? "PM" : "AM";
+  const hour12 = hours % 12 || 12;
+  if (minutes === 0) return `${hour12} ${period}`;
+  return `${hour12}:${minutes.toString().padStart(2, "0")} ${period}`;
+}
+
 interface ToolCall {
   id: string;
   name?: string;
@@ -286,10 +303,10 @@ async function handleCheckAvailability(
   });
 
   if (result.data.length === 0) {
-    return `No tables available for ${partySize} guests at ${time} on ${date}. Would you like to try a different time?`;
+    return `No tables available for ${partySize} guests at ${formatTimeSpoken(time)} on ${formatDateSpoken(date)}. Would you like to try a different time?`;
   }
 
-  return `${result.data.length} table(s) available for ${partySize} guests at ${time} on ${date}. Shall I book one for you?`;
+  return `${result.data.length} table(s) available for ${partySize} guests at ${formatTimeSpoken(time)} on ${formatDateSpoken(date)}. Shall I book one for you?`;
 }
 
 async function handleCreateReservation(
@@ -299,7 +316,10 @@ async function handleCreateReservation(
   requestId: string
 ): Promise<string> {
   const guestName = args.guest_name as string;
-  const guestPhone = (args.guest_phone as string) || callerPhone || "";
+  const argPhone = args.guest_phone as string | undefined;
+  const guestPhone = (argPhone && argPhone.length > 3 && !argPhone.match(/^[+]?0+$/))
+    ? argPhone
+    : callerPhone || "";
   const date = args.date as string;
   const time = args.time as string;
   const partySize = args.party_size as number;
@@ -369,7 +389,7 @@ async function handleCreateReservation(
     ? ` at table ${result.data.tableIdentifier}`
     : "";
 
-  return `Reservation confirmed for ${guestName}, party of ${partySize}, on ${date} at ${time}${tableInfo}. Is there anything else I can help with?`;
+  return `Reservation confirmed for ${guestName}, party of ${partySize}, on ${formatDateSpoken(date)} at ${formatTimeSpoken(time)}${tableInfo}. Is there anything else I can help with?`;
 }
 
 async function handleModifyReservation(
@@ -464,7 +484,7 @@ async function handleModifyReservation(
     });
 
     if (!availability.success || !availability.data || availability.data.length === 0) {
-      return `No tables available for ${updatedPartySize} guests at ${updatedTime} on ${updatedDate}. Would you like to try a different time?`;
+      return `No tables available for ${updatedPartySize} guests at ${formatTimeSpoken(updatedTime)} on ${formatDateSpoken(updatedDate)}. Would you like to try a different time?`;
     }
   }
 
@@ -488,8 +508,8 @@ async function handleModifyReservation(
   }
 
   const changes: string[] = [];
-  if (newDate) changes.push(`date to ${newDate}`);
-  if (newTime) changes.push(`time to ${newTime}`);
+  if (newDate) changes.push(`date to ${formatDateSpoken(newDate)}`);
+  if (newTime) changes.push(`time to ${formatTimeSpoken(newTime)}`);
   if (newPartySize) changes.push(`party size to ${newPartySize}`);
 
   log("INFO", "modify_reservation:success", {
@@ -498,7 +518,7 @@ async function handleModifyReservation(
     changes,
   });
 
-  return `Reservation for ${guestName} has been updated: ${changes.join(", ")}. The booking is now on ${updatedDate} at ${updatedTime} for ${updatedPartySize} guests.`;
+  return `Reservation for ${guestName} has been updated: ${changes.join(", ")}. The booking is now on ${formatDateSpoken(updatedDate)} at ${formatTimeSpoken(updatedTime)} for ${updatedPartySize} guests.`;
 }
 
 async function handleCancelReservation(
@@ -578,7 +598,7 @@ async function handleCancelReservation(
     reservationId: match.id,
   });
 
-  return `The reservation for ${guestName} on ${date} at ${match.reservationTime} has been cancelled. Is there anything else I can help with?`;
+  return `The reservation for ${guestName} on ${formatDateSpoken(date)} at ${formatTimeSpoken(match.reservationTime)} has been cancelled. Is there anything else I can help with?`;
 }
 
 async function handleGetReservations(
@@ -632,7 +652,7 @@ async function handleGetReservations(
   const details = matches
     .map(
       (r) =>
-        `${r.reservationTime} - party of ${r.partySize}${r.tableIdentifier ? ` (table ${r.tableIdentifier})` : ""}, status: ${r.status}`
+        `${formatTimeSpoken(r.reservationTime)} - party of ${r.partySize}${r.tableIdentifier ? ` (table ${r.tableIdentifier})` : ""}, status: ${r.status}`
     )
     .join("; ");
 
