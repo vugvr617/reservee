@@ -148,7 +148,7 @@ export async function createVapiAssistant(
     voice: getVoiceConfig(aiConfig.ai_voice_id),
     transcriber: {
       provider: "deepgram",
-      model: "nova-2",
+      model: "nova-3",
       language: "en-US",
     },
     model: {
