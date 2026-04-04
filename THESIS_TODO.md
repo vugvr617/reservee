@@ -21,12 +21,6 @@
 - ~~Replace read-then-write guest counter with `total_reservations = total_reservations + 1`~~
 - ~~Call via `supabase.rpc()`~~
 
-### 4. Staff Role
-- Add `role` field to user table (`owner` / `staff`)
-- Staff sees: dashboard, reservations, seat walk-ins, mark no-shows
-- Staff cannot see: analytics, floor editor, AI config, onboarding
-- Owner sees everything
-
 ### 5. Settings Pages
 All settings are currently set during onboarding only — no way to edit them afterward.
 
