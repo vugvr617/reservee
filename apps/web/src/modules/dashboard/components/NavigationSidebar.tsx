@@ -13,7 +13,8 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
-  Phone
+  Phone,
+  Activity,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { signOut } from "@/lib/auth-client";
@@ -92,6 +93,14 @@ export function NavigationSidebar() {
             >
               <Phone className="h-4 w-4 shrink-0" />
               {!isCollapsed && <span>AI Calls</span>}
+            </button>
+            <button
+              onClick={() => router.push("/dashboard/activity-log")}
+              className={navButtonClass("/dashboard/activity-log")}
+              title="Activity Log"
+            >
+              <Activity className="h-4 w-4 shrink-0" />
+              {!isCollapsed && <span>Activity Log</span>}
             </button>
           </div>
         </div>

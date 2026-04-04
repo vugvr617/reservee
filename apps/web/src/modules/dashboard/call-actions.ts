@@ -32,7 +32,10 @@ export async function getCallLogById(callId: string) {
   return _getCallLogById(callId);
 }
 
-export async function getCallStats() {
+export async function getCallStats(options: {
+  createdAtGe?: string;
+  createdAtLe?: string;
+} = {}) {
   const assistantId = await getVenueAssistantId();
-  return _getCallStats(assistantId);
+  return _getCallStats(assistantId, options);
 }

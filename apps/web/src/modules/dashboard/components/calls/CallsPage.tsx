@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
+import { format, subDays } from "date-fns";
 import { Phone } from "lucide-react";
 import { useCallLogs, useCallStats } from "../../hooks/use-call-logs";
 import { CallStatsCards } from "./CallStatsCards";
@@ -15,10 +16,12 @@ interface CallsPageProps {
 
 type CallWithOutcome = CallLog & { outcome: string };
 
+const default7DaysAgo = format(subDays(new Date(), 7), "yyyy-MM-dd");
+
 export function CallsPage({ venueId }: CallsPageProps) {
-  // Filter state
+  // Filter state — default to last 7 days
   const [outcome, setOutcome] = useState("all");
-  const [dateFrom, setDateFrom] = useState("");
+  const [dateFrom, setDateFrom] = useState(default7DaysAgo);
   const [dateTo, setDateTo] = useState("");
   const [phoneSearch, setPhoneSearch] = useState("");
 
@@ -26,13 +29,18 @@ export function CallsPage({ venueId }: CallsPageProps) {
   const [selectedCall, setSelectedCall] = useState<CallWithOutcome | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
+  // Date params shared by both calls and stats
+  const dateParams = useMemo(() => ({
+    createdAtGe: dateFrom || undefined,
+    createdAtLe: dateTo ? dateTo + "T23:59:59.999Z" : undefined,
+  }), [dateFrom, dateTo]);
+
   // Data hooks
   const { data: calls, isLoading: callsLoading } = useCallLogs({
     limit: 100,
-    createdAtGe: dateFrom || undefined,
-    createdAtLe: dateTo ? dateTo + "T23:59:59.999Z" : undefined,
+    ...dateParams,
   });
-  const { data: stats, isLoading: statsLoading } = useCallStats();
+  const { data: stats, isLoading: statsLoading } = useCallStats(dateParams);
 
   // Client-side filtering
   const filteredCalls = useMemo(() => {
@@ -59,7 +67,7 @@ export function CallsPage({ venueId }: CallsPageProps) {
 
   const handleClearFilters = useCallback(() => {
     setOutcome("all");
-    setDateFrom("");
+    setDateFrom(default7DaysAgo);
     setDateTo("");
     setPhoneSearch("");
   }, []);

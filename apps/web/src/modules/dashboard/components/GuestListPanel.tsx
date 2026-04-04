@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { format, parse } from "date-fns";
-import { Plus, Calendar as CalendarIcon, Ban, Phone, Users, MapPin, Copy, Loader2, Check, Trash2, RotateCcw, Pencil, UserX } from "lucide-react";
+import { format, parse, isToday, parseISO } from "date-fns";
+import { Plus, Calendar as CalendarIcon, Ban, Phone, Users, MapPin, Copy, Loader2, Check, Trash2, RotateCcw, Pencil, UserX, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -68,6 +68,8 @@ interface GuestListPanelProps {
   venueId: string;
   externalDetailReservation?: ReservationWithDetails | null;
   onExternalDetailConsumed?: () => void;
+  externalCreateForTableId?: string | null;
+  onExternalCreateConsumed?: () => void;
 }
 
 // ============================================
@@ -128,6 +130,34 @@ function getStatusLabel(status: ReservationStatus): string {
   }
 }
 
+type EffectiveStatus = "upcoming" | "likely-seated" | "elapsed" | "seated" | "completed" | "cancelled";
+
+/**
+ * Compute the visual status based on DB status + current time.
+ * For pending/confirmed reservations, we infer whether the guest
+ * is likely seated (time window active) or done (window expired).
+ */
+function getEffectiveStatus(
+  reservation: { status: ReservationStatus; reservationDate: string; reservationTime: string; durationMinutes: number | null },
+  now: Date
+): EffectiveStatus {
+  // Explicit statuses take priority
+  if (reservation.status === "seated") return "seated";
+  if (reservation.status === "completed") return "completed";
+  if (reservation.status === "cancelled" || reservation.status === "no_show") return "cancelled";
+
+  // For pending/confirmed, compute based on time
+  const [h, m] = reservation.reservationTime.split(":").map(Number);
+  const [y, mo, d] = reservation.reservationDate.split("-").map(Number);
+  const resStart = new Date(y, mo - 1, d, h, m, 0, 0);
+  const duration = reservation.durationMinutes || 90;
+  const resEnd = new Date(resStart.getTime() + duration * 60 * 1000);
+
+  if (now >= resEnd) return "elapsed";
+  if (now >= resStart) return "likely-seated";
+  return "upcoming";
+}
+
 function getStatusBadgeClasses(status: ReservationStatus): string {
   const display = mapStatusToDisplay(status);
   switch (display) {
@@ -139,16 +169,144 @@ function getStatusBadgeClasses(status: ReservationStatus): string {
 }
 
 // ============================================
+// Timeline with "Now" marker
+// ============================================
+
+function TimelineWithNowMarker({
+  reservations,
+  now,
+  isViewingToday,
+  getEffectiveStatusDot,
+  onReservationClick,
+}: {
+  reservations: ReservationWithDetails[];
+  now: Date;
+  isViewingToday: boolean;
+  getEffectiveStatusDot: (r: ReservationWithDetails) => React.ReactNode;
+  onReservationClick: (r: ReservationWithDetails) => void;
+}) {
+  // Find insertion index for the "now" marker
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  let nowIndex = -1; // -1 means don't show
+  if (isViewingToday) {
+    nowIndex = reservations.findIndex((r) => {
+      const [h, m] = r.reservationTime.split(":").map(Number);
+      return h * 60 + m > nowMinutes;
+    });
+    // If all reservations are in the past, put marker at the end
+    if (nowIndex === -1) {
+      // Check if there are any reservations and the last one is past
+      const last = reservations[reservations.length - 1];
+      if (last) {
+        const [h, m] = last.reservationTime.split(":").map(Number);
+        if (h * 60 + m <= nowMinutes) {
+          nowIndex = reservations.length;
+        }
+      }
+    }
+  }
+
+  const nowTime = format(now, "h:mm a");
+
+  return (
+    <div className="relative">
+      {/* Vertical timeline line */}
+      <div className="absolute left-[69.5px] top-0 bottom-0 w-px bg-gray-200" />
+
+      {reservations.map((reservation, idx) => {
+        const effective = isViewingToday
+          ? getEffectiveStatus(reservation, now)
+          : "upcoming";
+        const isPast = effective === "elapsed" || effective === "completed";
+        const isLikelySeated = effective === "likely-seated" || effective === "seated";
+
+        return (
+          <React.Fragment key={reservation.id}>
+            {/* "Now" marker */}
+            {isViewingToday && nowIndex === idx && (
+              <div className="relative flex items-center py-1.5 my-1">
+                <div className="absolute left-[16px] right-[8px] h-px bg-green-400" />
+                <div className="relative z-10 ml-[52px] flex items-center gap-1 bg-green-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
+                  <Clock className="h-2.5 w-2.5" />
+                  {nowTime}
+                </div>
+              </div>
+            )}
+            <div
+              onClick={() => onReservationClick(reservation)}
+              className={`relative flex items-center py-3.5 cursor-pointer transition-colors duration-150 rounded-lg hover:bg-gray-50 ${isPast ? "opacity-50" : ""}`}
+            >
+              <div className="w-[60px] shrink-0 text-center whitespace-nowrap">
+                <span className={`text-[12px] font-semibold tracking-tight ${isPast ? "text-gray-400" : "text-gray-900"}`}>
+                  {formatTime24to12(reservation.reservationTime)}
+                </span>
+              </div>
+
+              <div className="relative z-10 w-[18px] shrink-0 flex items-center justify-center">
+                <div className="bg-white p-[3px] rounded-full">
+                  {getEffectiveStatusDot(reservation)}
+                </div>
+              </div>
+
+              <div className="flex-1 min-w-0 pl-2.5">
+                <div className={`font-semibold text-[13px] leading-tight truncate flex items-center gap-1.5 ${isPast ? "text-gray-400" : "text-gray-900"}`}>
+                  {reservation.guestName}
+                  {reservation.isWalkIn && (
+                    <span className="inline-flex items-center px-1.5 py-0 rounded text-[9px] font-semibold bg-amber-50 text-amber-600 border border-amber-200 leading-tight shrink-0">
+                      Walk-in
+                    </span>
+                  )}
+                  {isLikelySeated && !reservation.isWalkIn && (
+                    <span className="inline-flex items-center px-1.5 py-0 rounded text-[9px] font-semibold bg-green-50 text-green-600 border border-green-200 leading-tight shrink-0">
+                      Seated
+                    </span>
+                  )}
+                </div>
+                <div className={`text-[11px] mt-0.5 leading-tight ${isPast ? "text-gray-300" : "text-gray-400"}`}>
+                  {reservation.partySize} {reservation.partySize === 1 ? 'guest' : 'guests'}
+                  <span className="mx-1 text-gray-300">·</span>
+                  {reservation.tableIdentifier || "No table"}
+                </div>
+              </div>
+            </div>
+          </React.Fragment>
+        );
+      })}
+
+      {/* "Now" marker at the end (all reservations are past) */}
+      {isViewingToday && nowIndex === reservations.length && (
+        <div className="relative flex items-center py-1.5 my-1">
+          <div className="absolute left-[16px] right-[8px] h-px bg-green-400" />
+          <div className="relative z-10 ml-[52px] flex items-center gap-1 bg-green-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
+            <Clock className="h-2.5 w-2.5" />
+            {nowTime}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================
 // Component
 // ============================================
 
-export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation, onExternalDetailConsumed }: GuestListPanelProps) {
+export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation, onExternalDetailConsumed, externalCreateForTableId, onExternalCreateConsumed }: GuestListPanelProps) {
   const [detailReservation, setDetailReservation] = useState<ReservationWithDetails | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isNewReservationOpen, setIsNewReservationOpen] = useState(false);
   const [editingReservation, setEditingReservation] = useState<ReservationWithDetails | null>(null);
+  const [now, setNow] = useState(() => new Date());
+
+  // Tick every 60s so time-based statuses update
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const isViewingToday = isToday(selectedDate);
 
   const dateStr = formatDateToISO(selectedDate);
 
@@ -189,6 +347,24 @@ export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation
   const watchTime = form.watch("reservationTime");
   const watchPartySize = form.watch("partySize");
 
+  // Open create dialog with pre-selected table (e.g. from table popup)
+  useEffect(() => {
+    if (externalCreateForTableId) {
+      form.reset({
+        guestName: "",
+        guestPhone: "",
+        partySize: 1,
+        reservationDate: "",
+        reservationTime: "",
+        tableId: externalCreateForTableId,
+        specialRequests: "",
+      });
+      setEditingReservation(null);
+      setIsNewReservationOpen(true);
+      onExternalCreateConsumed?.();
+    }
+  }, [externalCreateForTableId, onExternalCreateConsumed, form]);
+
   // Available tables for dropdown (don't filter by party size — user can see capacity in label)
   const { data: tableOptions = [] } = useAvailableTables(
     venueId,
@@ -218,23 +394,28 @@ export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation
     );
   }, [reservations, searchQuery]);
 
-  // --- Status dot ---
-  const getStatusDot = (status: ReservationStatus, isSelected: boolean) => {
-    const displayStatus = mapStatusToDisplay(status);
+  // --- Effective status dot (time-aware) ---
+  const getEffectiveStatusDot = useCallback((reservation: ReservationWithDetails) => {
+    const effective = isViewingToday
+      ? getEffectiveStatus(reservation, now)
+      : mapStatusToDisplay(reservation.status) as EffectiveStatus;
     const base = "w-2.5 h-2.5 rounded-full transition-all duration-200";
-    const glow = isSelected ? "scale-125" : "";
 
-    switch (displayStatus) {
+    switch (effective) {
       case "upcoming":
-        return <div className={`${base} ${glow} border-2 border-blue-500 bg-transparent`} />;
+        return <div className={`${base} border-2 border-blue-500 bg-transparent`} />;
+      case "likely-seated":
+        return <div className={`${base} bg-green-500 ring-2 ring-green-200`} />;
       case "seated":
-        return <div className={`${base} ${glow} bg-green-500`} />;
+        return <div className={`${base} bg-green-500`} />;
+      case "elapsed":
       case "completed":
-        return <div className={`${base} ${glow} bg-gray-400`} />;
+        return <div className={`${base} bg-gray-300`} />;
       case "cancelled":
-        return <div className={`${base} ${glow} bg-red-500`} />;
+        return <div className={`${base} bg-red-500`} />;
     }
-  };
+  }, [isViewingToday, now]);
+
 
   // --- Handlers ---
   const copyToClipboard = (text: string, label: string) => {
@@ -653,46 +834,13 @@ export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation
                       <p className="text-sm">No reservations found</p>
                     </div>
                   ) : (
-                    <div className="relative">
-                      {/* Vertical timeline line */}
-                      <div className="absolute left-[69.5px] top-0 bottom-0 w-px bg-gray-200" />
-
-                      {filteredReservations.map((reservation) => (
-                        <div
-                          key={reservation.id}
-                          onClick={() => openDetail(reservation)}
-                          className="relative flex items-center py-3.5 cursor-pointer transition-colors duration-150 rounded-lg hover:bg-gray-50"
-                        >
-                          <div className="w-[60px] shrink-0 text-center whitespace-nowrap">
-                            <span className="text-[12px] font-semibold text-gray-900 tracking-tight">
-                              {formatTime24to12(reservation.reservationTime)}
-                            </span>
-                          </div>
-
-                          <div className="relative z-10 w-[18px] shrink-0 flex items-center justify-center">
-                            <div className="bg-white p-[3px] rounded-full">
-                              {getStatusDot(reservation.status, false)}
-                            </div>
-                          </div>
-
-                          <div className="flex-1 min-w-0 pl-2.5">
-                            <div className="font-semibold text-gray-900 text-[13px] leading-tight truncate flex items-center gap-1.5">
-                              {reservation.guestName}
-                              {reservation.isWalkIn && (
-                                <span className="inline-flex items-center px-1.5 py-0 rounded text-[9px] font-semibold bg-amber-50 text-amber-600 border border-amber-200 leading-tight shrink-0">
-                                  Walk-in
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[11px] text-gray-400 mt-0.5 leading-tight">
-                              {reservation.partySize} {reservation.partySize === 1 ? 'guest' : 'guests'}
-                              <span className="mx-1 text-gray-300">·</span>
-                              {reservation.tableIdentifier || "No table"}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <TimelineWithNowMarker
+                      reservations={filteredReservations}
+                      now={now}
+                      isViewingToday={isViewingToday}
+                      getEffectiveStatusDot={getEffectiveStatusDot}
+                      onReservationClick={openDetail}
+                    />
                   )}
                 </div>
 

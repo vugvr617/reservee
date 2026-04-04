@@ -33,11 +33,14 @@ export function useCallLogDetail(callId: string | null) {
   });
 }
 
-export function useCallStats() {
+export function useCallStats(options: {
+  createdAtGe?: string;
+  createdAtLe?: string;
+} = {}) {
   return useQuery({
-    queryKey: ["call-stats"],
+    queryKey: ["call-stats", options],
     queryFn: async () => {
-      const result = await getCallStats();
+      const result = await getCallStats(options);
       if (!result.success) throw new Error(result.error);
       return result.data!;
     },
