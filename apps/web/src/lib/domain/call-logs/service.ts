@@ -144,7 +144,11 @@ export async function getCallLogById(
 }
 
 export async function getCallStats(
-  assistantId: string
+  assistantId: string,
+  options: {
+    createdAtGe?: string;
+    createdAtLe?: string;
+  } = {}
 ): Promise<{ success: boolean; data?: CallStats; error?: string }> {
   try {
     if (!assistantId) {
@@ -154,7 +158,12 @@ export async function getCallStats(
       };
     }
 
-    const calls = await vapi.calls.list({ assistantId, limit: 100 });
+    const calls = await vapi.calls.list({
+      assistantId,
+      limit: 100,
+      createdAtGe: options.createdAtGe,
+      createdAtLe: options.createdAtLe,
+    });
     const mapped = (calls as unknown as Array<Record<string, unknown>>).map((c) => {
       const call = mapVapiCall(c);
       return { ...call, outcome: deriveOutcome(call) };

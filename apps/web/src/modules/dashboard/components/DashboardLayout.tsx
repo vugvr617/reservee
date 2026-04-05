@@ -35,6 +35,7 @@ export function DashboardLayout({
     name: string;
   } | null>(null);
   const [externalDetailReservation, setExternalDetailReservation] = useState<ReservationWithDetails | null>(null);
+  const [externalCreateForTableId, setExternalCreateForTableId] = useState<string | null>(null);
 
   // Fetch today's reservations for table coloring
   const todayStr = format(new Date(), "yyyy-MM-dd");
@@ -83,6 +84,13 @@ export function DashboardLayout({
     if (!popupTable) return [];
     return todayReservations.filter((r) => r.tableId === popupTable.id);
   }, [todayReservations, popupTable]);
+
+  // Handle create reservation from table popup
+  const handleCreateReservation = useCallback((tableId: string) => {
+    setPopupTable(null);
+    setExternalCreateForTableId(tableId);
+    if (isGuestPanelCollapsed) setIsGuestPanelCollapsed(false);
+  }, [isGuestPanelCollapsed]);
 
   // Handle reservation click from table popup
   const handlePopupReservationClick = useCallback((reservation: ReservationWithDetails) => {
@@ -179,6 +187,7 @@ export function DashboardLayout({
                   todayReservations={popupTodayReservations}
                   onClose={() => setPopupTable(null)}
                   onReservationClick={handlePopupReservationClick}
+                  onCreateReservation={handleCreateReservation}
                   onSeatWalkIn={handleSeatWalkIn}
                   onFreeTable={handleFreeTable}
                   isSeatingWalkIn={walkInMutation.isPending}
@@ -221,6 +230,8 @@ export function DashboardLayout({
               venueId={venueId}
               externalDetailReservation={externalDetailReservation}
               onExternalDetailConsumed={() => setExternalDetailReservation(null)}
+              externalCreateForTableId={externalCreateForTableId}
+              onExternalCreateConsumed={() => setExternalCreateForTableId(null)}
             />
           )}
         </div>

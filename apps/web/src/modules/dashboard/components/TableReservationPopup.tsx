@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useMemo } from "react";
-import { X, CalendarDays, Loader2, UserPlus, DoorOpen } from "lucide-react";
+import { X, CalendarDays, Loader2, UserPlus, DoorOpen, CalendarPlus } from "lucide-react";
 import { format, parse, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -15,6 +15,7 @@ interface TableReservationPopupProps {
   todayReservations: ReservationWithDetails[];
   onClose: () => void;
   onReservationClick?: (reservation: ReservationWithDetails) => void;
+  onCreateReservation?: (tableId: string) => void;
   onSeatWalkIn?: (tableId: string) => void;
   onFreeTable?: (reservationId: string) => void;
   isSeatingWalkIn?: boolean;
@@ -125,6 +126,7 @@ export function TableReservationPopup({
   todayReservations,
   onClose,
   onReservationClick,
+  onCreateReservation,
   onSeatWalkIn,
   onFreeTable,
   isSeatingWalkIn,
@@ -263,9 +265,20 @@ export function TableReservationPopup({
           </div>
         </ScrollArea>
 
-        {/* Walk-In / Free Table action */}
-        {(onSeatWalkIn || onFreeTable) && (
-          <div className="px-2.5 py-2 border-t border-gray-100">
+        {/* Actions */}
+        {(onSeatWalkIn || onFreeTable || onCreateReservation) && (
+          <div className="px-2.5 py-2 border-t border-gray-100 space-y-1.5">
+            {onCreateReservation && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full h-8 gap-1.5 text-[12px] border-green-200 text-green-600 hover:bg-green-50"
+                onClick={() => onCreateReservation(tableId)}
+              >
+                <CalendarPlus className="h-3.5 w-3.5" />
+                New Reservation
+              </Button>
+            )}
             {activeWalkIn && onFreeTable ? (
               <Button
                 variant="outline"
@@ -285,7 +298,7 @@ export function TableReservationPopup({
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full h-8 gap-1.5 text-[12px] border-green-200 text-green-600 hover:bg-green-50"
+                className="w-full h-8 gap-1.5 text-[12px] border-gray-300 text-gray-600 hover:bg-gray-50"
                 onClick={() => onSeatWalkIn(tableId)}
                 disabled={isSeatingWalkIn}
               >

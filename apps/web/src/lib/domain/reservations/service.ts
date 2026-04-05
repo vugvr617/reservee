@@ -33,92 +33,43 @@ export async function createReservation(
       return { success: false, error: firstError?.message || "Invalid input" };
     }
 
-    const guestResult = await getOrCreateGuest(db, {
-      venueId: input.venueId,
-      fullName: input.guestName,
-      phoneNumber: input.guestPhone,
+    // Single RPC call: transaction wrapping + pessimistic locking + atomic counters
+    const { data, error } = await db.rpc("create_reservation_tx", {
+      p_venue_id: input.venueId,
+      p_guest_name: input.guestName,
+      p_guest_phone: input.guestPhone,
+      p_party_size: input.partySize,
+      p_reservation_date: input.reservationDate,
+      p_reservation_time: input.reservationTime,
+      p_table_id: input.tableId || null,
+      p_floor_id: input.floorId || null,
+      p_duration_minutes: input.durationMinutes || 90,
+      p_special_requests: input.specialRequests || null,
     });
-    if (!guestResult.success || !guestResult.data) {
-      return { success: false, error: guestResult.error || "Failed to resolve guest" };
-    }
-    const guest = guestResult.data;
-
-    if (input.tableId) {
-      const conflictCheck = await checkTableAvailability(
-        db,
-        input.tableId,
-        input.reservationDate,
-        input.reservationTime,
-        input.durationMinutes || 90
-      );
-      if (!conflictCheck.available) {
-        return { success: false, error: conflictCheck.reason || "Table is not available at this time" };
-      }
-    }
-
-    let floorId = input.floorId || null;
-    if (input.tableId && !floorId) {
-      const { data: table } = await db
-        .from("tables")
-        .select("floor_id")
-        .eq("id", input.tableId)
-        .single();
-      floorId = table?.floor_id || null;
-    }
-
-    const reservationDatetime = `${input.reservationDate}T${input.reservationTime}:00`;
-
-    const { data, error } = await db
-      .from("reservations")
-      .insert({
-        venue_id: input.venueId,
-        guest_id: guest.id,
-        guest_name: input.guestName,
-        guest_phone: input.guestPhone,
-        party_size: input.partySize,
-        reservation_date: input.reservationDate,
-        reservation_time: input.reservationTime,
-        reservation_datetime: reservationDatetime,
-        duration_minutes: input.durationMinutes || 90,
-        table_id: input.tableId || null,
-        floor_id: floorId,
-        special_requests: input.specialRequests || null,
-        status: "confirmed",
-        confirmed_at: new Date().toISOString(),
-      })
-      .select(`
-        *,
-        tables ( table_identifier, max_capacity ),
-        floors ( floor_name )
-      `)
-      .single();
 
     if (error) throw error;
-
-    await db
-      .from("guests")
-      .update({
-        total_reservations: (guest.total_reservations || 0) + 1,
-      })
-      .eq("id", guest.id);
 
     return { success: true, data: mapReservationRow(data) };
   } catch (error: unknown) {
     console.error("Error creating reservation:", error);
-    const pgCode = (error as { code?: string })?.code;
-    const pgMessage = (error as { message?: string })?.message || "";
+    const message = (error as { message?: string })?.message || "";
 
+    if (message.includes("Table is not available")) {
+      return { success: false, error: "Table is not available at this time" };
+    }
+
+    const pgCode = (error as { code?: string })?.code;
     if (pgCode === "23514") {
-      if (pgMessage.includes("reservations_check")) {
+      if (message.includes("reservations_check")) {
         return { success: false, error: "Reservation date & time must be in the future" };
       }
-      if (pgMessage.includes("party_size")) {
+      if (message.includes("party_size")) {
         return { success: false, error: "Party size must be at least 1" };
       }
-      if (pgMessage.includes("duration_minutes")) {
+      if (message.includes("duration_minutes")) {
         return { success: false, error: "Duration must be greater than 0" };
       }
-      if (pgMessage.includes("status_check")) {
+      if (message.includes("status_check")) {
         return { success: false, error: "Invalid reservation status" };
       }
     }
@@ -384,32 +335,18 @@ export async function updateReservationStatus(
 
     if (error) throw error;
 
-    if (newStatus === "cancelled" && data) {
-      const { data: guest } = await db
-        .from("guests")
-        .select("total_cancellations")
-        .eq("id", data.guest_id)
-        .single();
-      if (guest) {
-        await db
-          .from("guests")
-          .update({ total_cancellations: (guest.total_cancellations || 0) + 1 })
-          .eq("id", data.guest_id);
-      }
+    if (newStatus === "cancelled" && data?.guest_id) {
+      await db.rpc("increment_guest_counter", {
+        p_guest_id: data.guest_id,
+        p_column_name: "total_cancellations",
+      });
     }
 
-    if (newStatus === "no_show" && data) {
-      const { data: guest } = await db
-        .from("guests")
-        .select("total_no_shows")
-        .eq("id", data.guest_id)
-        .single();
-      if (guest) {
-        await db
-          .from("guests")
-          .update({ total_no_shows: (guest.total_no_shows || 0) + 1 })
-          .eq("id", data.guest_id);
-      }
+    if (newStatus === "no_show" && data?.guest_id) {
+      await db.rpc("increment_guest_counter", {
+        p_guest_id: data.guest_id,
+        p_column_name: "total_no_shows",
+      });
     }
 
     if (newStatus === "completed" && data) {
