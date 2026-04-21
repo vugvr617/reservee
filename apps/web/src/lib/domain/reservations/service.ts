@@ -45,6 +45,7 @@ export async function createReservation(
       p_floor_id: input.floorId || null,
       p_duration_minutes: input.durationMinutes || 90,
       p_special_requests: input.specialRequests || null,
+      p_performed_by: input.performedBy || null,
     });
 
     if (error) throw error;
@@ -78,39 +79,48 @@ export async function createReservation(
   }
 }
 
+export interface CreateWalkInInput {
+  venueId: string;
+  tableId: string;
+  partySize: number;
+  reservationDate?: string;
+  reservationTime?: string;
+}
+
 export async function createWalkIn(
   db: SupabaseClient,
-  venueId: string,
-  tableId: string
+  input: CreateWalkInInput
 ): Promise<{ success: boolean; data?: ReservationWithDetails; error?: string }> {
   try {
     const { data: table } = await db
       .from("tables")
       .select("floor_id")
-      .eq("id", tableId)
+      .eq("id", input.tableId)
       .single();
 
     const floorId = table?.floor_id || null;
 
     const now = new Date();
     const pad = (n: number) => n.toString().padStart(2, "0");
-    const reservationDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-    const reservationTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    const reservationDate = input.reservationDate
+      || `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const reservationTime = input.reservationTime
+      || `${pad(now.getHours())}:${pad(now.getMinutes())}`;
     const reservationDatetime = `${reservationDate}T${reservationTime}:00`;
 
     const { data, error } = await db
       .from("reservations")
       .insert({
-        venue_id: venueId,
+        venue_id: input.venueId,
         guest_id: null,
         guest_name: "Walk-in",
         guest_phone: "",
-        party_size: 1,
+        party_size: input.partySize,
         reservation_date: reservationDate,
         reservation_time: reservationTime,
         reservation_datetime: reservationDatetime,
         duration_minutes: 90,
-        table_id: tableId,
+        table_id: input.tableId,
         floor_id: floorId,
         status: "seated",
         is_walk_in: true,
@@ -129,6 +139,56 @@ export async function createWalkIn(
   } catch (error: unknown) {
     console.error("Error creating walk-in:", error);
     return { success: false, error: "Failed to seat walk-in" };
+  }
+}
+
+export interface UpdateWalkInInput {
+  id: string;
+  partySize: number;
+  tableId: string;
+  reservationDate: string;
+  reservationTime: string;
+}
+
+export async function updateWalkIn(
+  db: SupabaseClient,
+  input: UpdateWalkInInput
+): Promise<{ success: boolean; data?: ReservationWithDetails; error?: string }> {
+  try {
+    const { data: table } = await db
+      .from("tables")
+      .select("floor_id")
+      .eq("id", input.tableId)
+      .single();
+    const floorId = table?.floor_id || null;
+
+    const reservationDatetime = `${input.reservationDate}T${input.reservationTime}:00`;
+
+    const { data, error } = await db
+      .from("reservations")
+      .update({
+        party_size: input.partySize,
+        table_id: input.tableId,
+        floor_id: floorId,
+        reservation_date: input.reservationDate,
+        reservation_time: input.reservationTime,
+        reservation_datetime: reservationDatetime,
+      })
+      .eq("id", input.id)
+      .eq("is_walk_in", true)
+      .select(`
+        *,
+        tables ( table_identifier, max_capacity ),
+        floors ( floor_name )
+      `)
+      .single();
+
+    if (error) throw error;
+
+    return { success: true, data: mapReservationRow(data) };
+  } catch (error: unknown) {
+    console.error("Error updating walk-in:", error);
+    return { success: false, error: "Failed to update walk-in" };
   }
 }
 
@@ -202,6 +262,7 @@ export async function updateReservation(
         table_id: input.tableId || null,
         floor_id: floorId,
         special_requests: input.specialRequests || null,
+        modified_by: input.performedBy || "unknown",
       })
       .eq("id", input.id)
       .select(`
@@ -299,11 +360,13 @@ export async function updateReservationStatus(
   db: SupabaseClient,
   reservationId: string,
   newStatus: ReservationStatus,
-  cancellationReason?: string
+  cancellationReason?: string,
+  performedBy?: string
 ): Promise<{ success: boolean; data?: ReservationWithDetails; error?: string }> {
   try {
     const updateData: Record<string, unknown> = {
       status: newStatus,
+      modified_by: performedBy || "unknown",
     };
 
     const now = new Date().toISOString();
@@ -318,8 +381,6 @@ export async function updateReservationStatus(
       }
     } else if (newStatus === "no_show") {
       updateData.cancelled_at = now;
-    } else if (newStatus === "confirmed") {
-      updateData.confirmed_at = now;
     }
 
     const { data, error } = await db
@@ -366,9 +427,10 @@ export async function updateReservationStatus(
 export async function cancelReservation(
   db: SupabaseClient,
   reservationId: string,
-  reason?: string
+  reason?: string,
+  performedBy?: string
 ): Promise<{ success: boolean; data?: ReservationWithDetails; error?: string }> {
-  return updateReservationStatus(db, reservationId, "cancelled", reason);
+  return updateReservationStatus(db, reservationId, "cancelled", reason, performedBy);
 }
 
 export async function deleteReservation(

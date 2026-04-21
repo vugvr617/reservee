@@ -66,10 +66,11 @@ All settings are currently set during onboarding only — no way to edit them af
 - Click a guest to see their full reservation history
 - Staff/owner can edit notes, toggle VIP/blacklist
 
-### 8. Customer Notifications
-- Send email confirmation after reservation created via AI call
-- Send email on modification or cancellation
-- Use Resend or SendGrid
+### 8. ~~Customer Notifications~~ *(excluded from thesis scope)*
+> **Not implementing.** Reservation data (including contact info) is already captured
+> during the AI call itself, so a separate email notification flow adds no thesis value.
+> The guest's phone number is saved on reservation creation, and the call transcript
+> serves as confirmation.
 
 ### 9. Real-Time Dashboard Updates
 - Subscribe to `reservations` table changes via Supabase Realtime

@@ -28,6 +28,9 @@ export function getVoiceConfig(voiceId: string) {
   return {
     provider: "11labs" as const,
     voiceId,
+    model: "eleven_turbo_v2_5",
+    stability: 0.5,
+    similarityBoost: 0.75,
   };
 }
 

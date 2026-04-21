@@ -61,12 +61,6 @@ const ACTION_CONFIG: Record<
     dotColor: "bg-gray-500",
     badgeClass: "bg-gray-50 text-gray-700 border-gray-200",
   },
-  confirmed: {
-    label: "Reservation confirmed",
-    icon: CheckCircle2,
-    dotColor: "bg-green-500",
-    badgeClass: "bg-green-50 text-green-700 border-green-200",
-  },
   deleted: {
     label: "Reservation deleted",
     icon: Trash2,

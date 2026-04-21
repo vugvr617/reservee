@@ -13,6 +13,7 @@ import {
   getUpcomingReservationsForTable,
   createReservation,
   createWalkIn,
+  updateWalkIn,
   updateReservation,
   updateReservationStatus,
   cancelReservation,
@@ -126,7 +127,7 @@ export function useCreateReservation(venueId: string, currentDate: string) {
         reservationTime: input.reservationTime,
         reservationDatetime: `${input.reservationDate}T${input.reservationTime}:00`,
         durationMinutes: input.durationMinutes || 90,
-        status: "confirmed",
+        status: "pending",
         specialRequests: input.specialRequests || null,
         internalNotes: null,
         tableId: input.tableId || null,
@@ -178,41 +179,56 @@ export function useCreateReservation(venueId: string, currentDate: string) {
   });
 }
 
+interface CreateWalkInVars {
+  tableId: string;
+  partySize: number;
+  reservationDate?: string;
+  reservationTime?: string;
+}
+
 export function useCreateWalkIn(venueId: string) {
   const queryClient = useQueryClient();
   const today = format(new Date(), "yyyy-MM-dd");
 
   return useMutation({
-    mutationFn: (tableId: string) => createWalkIn(venueId, tableId),
-    onMutate: async (tableId) => {
+    mutationFn: (vars: CreateWalkInVars) =>
+      createWalkIn({
+        venueId,
+        tableId: vars.tableId,
+        partySize: vars.partySize,
+        reservationDate: vars.reservationDate,
+        reservationTime: vars.reservationTime,
+      }),
+    onMutate: async (vars) => {
+      const date = vars.reservationDate || today;
       await queryClient.cancelQueries({
-        queryKey: ["reservations", venueId, today],
+        queryKey: ["reservations", venueId, date],
       });
 
       const previousReservations = queryClient.getQueryData<ReservationWithDetails[]>([
         "reservations",
         venueId,
-        today,
+        date,
       ]);
 
       const now = new Date();
       const pad = (n: number) => n.toString().padStart(2, "0");
-      const time = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+      const time = vars.reservationTime || `${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
       const optimisticWalkIn: ReservationWithDetails = {
         id: `temp-walkin-${Date.now()}`,
         guestName: "Walk-in",
         guestPhone: "",
         guestId: null,
-        partySize: 1,
-        reservationDate: today,
+        partySize: vars.partySize,
+        reservationDate: date,
         reservationTime: time,
-        reservationDatetime: `${today}T${time}:00`,
+        reservationDatetime: `${date}T${time}:00`,
         durationMinutes: 90,
         status: "seated",
         specialRequests: null,
         internalNotes: null,
-        tableId,
+        tableId: vars.tableId,
         floorId: null,
         tableIdentifier: null,
         floorName: null,
@@ -226,26 +242,27 @@ export function useCreateWalkIn(venueId: string) {
       };
 
       queryClient.setQueryData<ReservationWithDetails[]>(
-        ["reservations", venueId, today],
+        ["reservations", venueId, date],
         (old) =>
           [...(old || []), optimisticWalkIn].sort((a, b) =>
             a.reservationTime.localeCompare(b.reservationTime)
           )
       );
 
-      return { previousReservations };
+      return { previousReservations, date };
     },
-    onError: (_err, _tableId, context) => {
-      if (context?.previousReservations) {
+    onError: (_err, _vars, context) => {
+      if (context?.previousReservations && context?.date) {
         queryClient.setQueryData(
-          ["reservations", venueId, today],
+          ["reservations", venueId, context.date],
           context.previousReservations
         );
       }
     },
-    onSettled: () => {
+    onSettled: (_data, _error, vars) => {
+      const date = vars.reservationDate || today;
       queryClient.invalidateQueries({
-        queryKey: ["reservations", venueId, today],
+        queryKey: ["reservations", venueId, date],
       });
       queryClient.invalidateQueries({
         queryKey: ["reservation-counts", venueId],
@@ -253,6 +270,37 @@ export function useCreateWalkIn(venueId: string) {
       queryClient.invalidateQueries({
         queryKey: ["table-reservations"],
       });
+      queryClient.invalidateQueries({
+        queryKey: ["available-tables", venueId],
+      });
+    },
+  });
+}
+
+interface UpdateWalkInVars {
+  id: string;
+  partySize: number;
+  tableId: string;
+  reservationDate: string;
+  reservationTime: string;
+}
+
+export function useUpdateWalkIn(venueId: string, currentDate: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (vars: UpdateWalkInVars) => updateWalkIn(vars),
+    onSettled: (_data, _error, vars) => {
+      queryClient.invalidateQueries({
+        queryKey: ["reservations", venueId, currentDate],
+      });
+      if (vars.reservationDate !== currentDate) {
+        queryClient.invalidateQueries({
+          queryKey: ["reservations", venueId, vars.reservationDate],
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["available-tables", venueId] });
+      queryClient.invalidateQueries({ queryKey: ["table-reservations"] });
     },
   });
 }

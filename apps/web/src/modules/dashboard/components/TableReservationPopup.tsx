@@ -27,7 +27,6 @@ type DisplayStatus = "upcoming" | "seated" | "completed" | "cancelled";
 function toDisplayStatus(status: ReservationStatus): DisplayStatus {
   switch (status) {
     case "pending":
-    case "confirmed":
       return "upcoming";
     case "seated":
       return "seated";

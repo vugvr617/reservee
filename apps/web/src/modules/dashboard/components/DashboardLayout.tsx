@@ -10,6 +10,7 @@ import { FloorPlanCanvas } from "./Canvas/FloorPlanCanvas";
 import { EditModeModal } from "./EditModeModal";
 import { GuestListPanel } from "./GuestListPanel";
 import { TableReservationPopup } from "./TableReservationPopup";
+import { WalkInDialog } from "./WalkInDialog";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useReservationsForDate, useCreateWalkIn, useUpdateReservationStatus } from "../hooks/use-reservations";
 import { toast } from "sonner";
@@ -36,6 +37,11 @@ export function DashboardLayout({
   } | null>(null);
   const [externalDetailReservation, setExternalDetailReservation] = useState<ReservationWithDetails | null>(null);
   const [externalCreateForTableId, setExternalCreateForTableId] = useState<string | null>(null);
+  const [walkInTarget, setWalkInTarget] = useState<{
+    id: string;
+    name: string;
+    maxCapacity: number | null;
+  } | null>(null);
 
   // Fetch today's reservations for table coloring
   const todayStr = format(new Date(), "yyyy-MM-dd");
@@ -45,11 +51,31 @@ export function DashboardLayout({
   const walkInMutation = useCreateWalkIn(venueId);
   const statusMutation = useUpdateReservationStatus(venueId, todayStr);
 
-  const handleSeatWalkIn = async (tableId: string) => {
-    const result = await walkInMutation.mutateAsync(tableId);
+  const handleSeatWalkIn = (tableId: string) => {
+    const table = tables.find((t: { id: string; table_identifier: string; max_capacity?: number | null }) => t.id === tableId);
+    setPopupTable(null);
+    setWalkInTarget({
+      id: tableId,
+      name: table?.table_identifier ?? "Table",
+      maxCapacity: (table?.max_capacity as number | null | undefined) ?? null,
+    });
+  };
+
+  const handleConfirmWalkIn = async (input: {
+    partySize: number;
+    reservationDate: string;
+    reservationTime: string;
+  }) => {
+    if (!walkInTarget) return;
+    const result = await walkInMutation.mutateAsync({
+      tableId: walkInTarget.id,
+      partySize: input.partySize,
+      reservationDate: input.reservationDate,
+      reservationTime: input.reservationTime,
+    });
     if (result.success) {
       toast.success("Walk-in seated successfully");
-      setPopupTable(null);
+      setWalkInTarget(null);
     } else {
       toast.error(result.error || "Failed to seat walk-in");
     }
@@ -194,6 +220,18 @@ export function DashboardLayout({
                   isFreeingTable={statusMutation.isPending}
                 />
               )}
+
+              {/* Walk-in Dialog */}
+              <WalkInDialog
+                open={!!walkInTarget}
+                onOpenChange={(open) => {
+                  if (!open) setWalkInTarget(null);
+                }}
+                tableName={walkInTarget?.name ?? ""}
+                tableMaxCapacity={walkInTarget?.maxCapacity ?? null}
+                isSubmitting={walkInMutation.isPending}
+                onSubmit={handleConfirmWalkIn}
+              />
 
               {/* Panel Toggle Button - Floating */}
               {!isEditMode && (

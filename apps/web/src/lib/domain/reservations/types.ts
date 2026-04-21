@@ -5,7 +5,6 @@ export type Reservation = Tables<"reservations">;
 
 export type ReservationStatus =
   | "pending"
-  | "confirmed"
   | "seated"
   | "completed"
   | "cancelled"
@@ -54,6 +53,7 @@ export interface CreateReservationInput {
   floorId?: string | null;
   durationMinutes?: number;
   specialRequests?: string;
+  performedBy?: string;
 }
 
 export interface UpdateReservationInput {
@@ -68,6 +68,7 @@ export interface UpdateReservationInput {
   floorId?: string | null;
   durationMinutes?: number;
   specialRequests?: string;
+  performedBy?: string;
 }
 
 export interface TableOption {

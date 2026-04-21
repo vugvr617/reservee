@@ -69,17 +69,13 @@ export const VAPI_TOOLS = [
     function: {
       name: "cancel_reservation",
       description:
-        "Cancel an existing reservation. The system will first try to find the reservation by the caller's phone number. Only ask for the guest name if the phone lookup fails.",
+        "Cancel an existing reservation. The reservation is identified automatically by the caller's phone number — never ask the caller for their name.",
       parameters: {
         type: "object",
         properties: {
           date: {
             type: "string",
             description: "Date of the reservation in YYYY-MM-DD format",
-          },
-          guest_name: {
-            type: "string",
-            description: "Name the reservation is under (optional if phone number matches)",
           },
         },
         required: ["date"],
@@ -91,17 +87,13 @@ export const VAPI_TOOLS = [
     function: {
       name: "modify_reservation",
       description:
-        "Modify an existing reservation. The system will first try to find the reservation by the caller's phone number. Only ask for the guest name if the phone lookup fails. Only provide fields that are changing.",
+        "Modify an existing reservation. The reservation is identified automatically by the caller's phone number — never ask the caller for their name. Only provide fields that are changing.",
       parameters: {
         type: "object",
         properties: {
           original_date: {
             type: "string",
             description: "Current date of the reservation in YYYY-MM-DD format",
-          },
-          guest_name: {
-            type: "string",
-            description: "Name the reservation is under (optional if phone number matches)",
           },
           new_date: {
             type: "string",
@@ -130,17 +122,13 @@ export const VAPI_TOOLS = [
     function: {
       name: "get_reservations",
       description:
-        "Look up existing reservations. The system will first try to find reservations by the caller's phone number. Only ask for the guest name if the phone lookup fails.",
+        "Look up the caller's existing reservations on a given date. The reservations are identified automatically by the caller's phone number — never ask the caller for their name.",
       parameters: {
         type: "object",
         properties: {
           date: {
             type: "string",
             description: "Date to look up in YYYY-MM-DD format",
-          },
-          guest_name: {
-            type: "string",
-            description: "Name to search for (optional if phone number matches)",
           },
         },
         required: ["date"],

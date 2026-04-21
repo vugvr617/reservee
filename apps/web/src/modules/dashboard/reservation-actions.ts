@@ -1,10 +1,11 @@
 "use server";
 
 import { supabase } from "@/lib/supabase";
-import { getCurrentVenue } from "./get-current-venue";
+import { getCurrentVenue, getCurrentPerformer } from "./get-current-venue";
 import {
   createReservation as _createReservation,
   createWalkIn as _createWalkIn,
+  updateWalkIn as _updateWalkIn,
   updateReservation as _updateReservation,
   updateReservationStatus as _updateReservationStatus,
   cancelReservation as _cancelReservation,
@@ -15,6 +16,8 @@ import {
   checkTableAvailability as _checkTableAvailability,
   getAvailableTablesForSlot as _getAvailableTablesForSlot,
   getAllTablesGroupedByFloor as _getAllTablesGroupedByFloor,
+  type CreateWalkInInput,
+  type UpdateWalkInInput,
 } from "@/lib/domain/reservations/service";
 import { getOrCreateGuest as _getOrCreateGuest, searchGuests as _searchGuests } from "@/lib/domain/guests/service";
 import type {
@@ -42,15 +45,21 @@ export async function searchGuests(query: string) {
 // ============================================
 
 export async function createReservation(input: CreateReservationInput) {
-  return _createReservation(supabase, input);
+  const performedBy = await getCurrentPerformer();
+  return _createReservation(supabase, { ...input, performedBy });
 }
 
-export async function createWalkIn(venueId: string, tableId: string) {
-  return _createWalkIn(supabase, venueId, tableId);
+export async function createWalkIn(input: CreateWalkInInput) {
+  return _createWalkIn(supabase, input);
+}
+
+export async function updateWalkIn(input: UpdateWalkInInput) {
+  return _updateWalkIn(supabase, input);
 }
 
 export async function updateReservation(input: UpdateReservationInput) {
-  return _updateReservation(supabase, input);
+  const performedBy = await getCurrentPerformer();
+  return _updateReservation(supabase, { ...input, performedBy });
 }
 
 export async function getReservationsForDate(venueId: string, date: string) {
@@ -70,11 +79,13 @@ export async function updateReservationStatus(
   newStatus: ReservationStatus,
   cancellationReason?: string
 ) {
-  return _updateReservationStatus(supabase, reservationId, newStatus, cancellationReason);
+  const performedBy = await getCurrentPerformer();
+  return _updateReservationStatus(supabase, reservationId, newStatus, cancellationReason, performedBy);
 }
 
 export async function cancelReservation(reservationId: string, reason?: string) {
-  return _cancelReservation(supabase, reservationId, reason);
+  const performedBy = await getCurrentPerformer();
+  return _cancelReservation(supabase, reservationId, reason, performedBy);
 }
 
 export async function deleteReservation(reservationId: string) {
