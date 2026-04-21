@@ -68,6 +68,12 @@ If you have trouble understanding the caller's name, ask them to spell it.
 If it's still unclear, do your best with what you heard.
 Never end the call because of a name issue.
 
+## Identifying the Caller for Modify, Cancel, Look-up
+For modify_reservation, cancel_reservation, and get_reservations:
+- The caller's phone number alone identifies them. Never ask for their name.
+- If no reservation is found under their phone number, tell the caller and offer to transfer them to our team. Do NOT ask for a name to try again.
+- The name is only needed when creating a NEW reservation.
+
 ---
 
 ## Booking Flow
@@ -130,11 +136,11 @@ Never stack fillers (e.g., avoid "um, yeah, okay").
 Do not use fillers in the final reservation confirmation. Keep confirmations clean and direct.`;
 }
 
-export async function createVapiAssistant(
+function buildAssistantConfig(
   venue: VenueData,
   aiConfig: AIConfig,
   fallbackPhone: string
-): Promise<{ id: string }> {
+) {
   const serverUrl = process.env.NEXT_PUBLIC_APP_URL
     ? `${process.env.NEXT_PUBLIC_APP_URL}/api/vapi/webhook`
     : undefined;
@@ -143,17 +149,16 @@ export async function createVapiAssistant(
   const greeting =
     aiConfig.ai_custom_greeting || generateGreeting(venue.venueName || "your venue");
 
-  const assistant = await vapi.assistants.create({
+  return {
     name: `${venue.venueName} AI Receptionist`,
     voice: getVoiceConfig(aiConfig.ai_voice_id),
     transcriber: {
-      provider: "deepgram",
-      model: "nova-3",
+      provider: "azure",
       language: "en-US",
     },
     model: {
       provider: "openai",
-      model: "gpt-4",
+      model: "gpt-5.1-chat-latest",
       messages: [
         {
           role: "system",
@@ -162,11 +167,23 @@ export async function createVapiAssistant(
       ],
       tools: VAPI_TOOLS as any,
     },
-    server: serverUrl ? { url: serverUrl } : undefined,
+    server: serverUrl ? { url: serverUrl, timeoutSeconds: 20 } : undefined,
     endCallFunctionEnabled: true,
+    backgroundDenoisingEnabled: false,
+    artifactPlan: {
+      recordingEnabled: true,
+    },
     firstMessage: greeting,
-  } as any);
+  };
+}
 
+export async function createVapiAssistant(
+  venue: VenueData,
+  aiConfig: AIConfig,
+  fallbackPhone: string
+): Promise<{ id: string }> {
+  const config = buildAssistantConfig(venue, aiConfig, fallbackPhone);
+  const assistant = await vapi.assistants.create(config as any);
   return { id: assistant.id };
 }
 
@@ -176,31 +193,6 @@ export async function updateVapiAssistant(
   aiConfig: AIConfig,
   fallbackPhone: string
 ): Promise<void> {
-  const serverUrl = process.env.NEXT_PUBLIC_APP_URL
-    ? `${process.env.NEXT_PUBLIC_APP_URL}/api/vapi/webhook`
-    : undefined;
-
-  const systemPrompt = buildSystemPrompt(venue, fallbackPhone);
-  const greeting =
-    aiConfig.ai_custom_greeting || generateGreeting(venue.venueName || "your venue");
-
-  await vapi.assistants.update({
-    id: assistantId,
-    name: `${venue.venueName} AI Receptionist`,
-    voice: getVoiceConfig(aiConfig.ai_voice_id),
-    model: {
-      provider: "openai",
-      model: "gpt-4",
-      messages: [
-        {
-          role: "system",
-          content: systemPrompt,
-        },
-      ],
-      tools: VAPI_TOOLS as any,
-    },
-    server: serverUrl ? { url: serverUrl } : undefined,
-    endCallFunctionEnabled: true,
-    firstMessage: greeting,
-  } as any);
+  const config = buildAssistantConfig(venue, aiConfig, fallbackPhone);
+  await vapi.assistants.update({ id: assistantId, ...config } as any);
 }

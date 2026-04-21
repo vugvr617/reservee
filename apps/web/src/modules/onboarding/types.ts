@@ -90,4 +90,5 @@ export interface VenueData {
 
   onboardingStatus: "in-progress" | "completed";
   onboardingStep: number;
+  updatedAt?: string | null;
 }

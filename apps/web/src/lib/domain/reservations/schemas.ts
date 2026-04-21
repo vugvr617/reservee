@@ -9,7 +9,7 @@ export const createReservationSchema = z.object({
   reservationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Valid date required"),
   reservationTime: z.string().regex(/^\d{2}:\d{2}$/, "Valid time required"),
   tableId: z.string().nullable().optional(),
-  specialRequests: z.string().optional(),
+  specialRequests: z.string().nullable().optional(),
 });
 
 export type CreateReservationFormValues = z.infer<typeof createReservationSchema>;

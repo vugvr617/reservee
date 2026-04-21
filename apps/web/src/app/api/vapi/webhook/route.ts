@@ -64,6 +64,8 @@ function log(level: "INFO" | "WARN" | "ERROR", context: string, data: Record<str
 export async function POST(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8);
 
+  console.log(`\n========== [${requestId}] VAPI WEBHOOK HIT @ ${new Date().toISOString()} ==========`);
+
   try {
     const body = await request.json();
 
@@ -187,6 +189,8 @@ async function executeToolCall(
     typeof rawArgs === "string" ? JSON.parse(rawArgs) : rawArgs;
   const startTime = Date.now();
 
+  console.log(`>>> [${requestId}] TOOL CALL: ${name}(${JSON.stringify(args)})`);
+
   log("INFO", `tool:${name}:start`, {
     requestId,
     toolCallId: id,
@@ -229,6 +233,8 @@ async function executeToolCall(
         });
     }
 
+    console.log(`<<< [${requestId}] TOOL RESULT (${Date.now() - startTime}ms): ${result.slice(0, 200)}`);
+
     log("INFO", `tool:${name}:success`, {
       requestId,
       toolCallId: id,
@@ -238,6 +244,8 @@ async function executeToolCall(
 
     return { toolCallId: id, result };
   } catch (error) {
+    console.log(`!!! [${requestId}] TOOL ERROR (${Date.now() - startTime}ms): ${error instanceof Error ? error.message : String(error)}`);
+
     log("ERROR", `tool:${name}:error`, {
       requestId,
       toolCallId: id,
@@ -369,6 +377,7 @@ async function handleCreateReservation(
     reservationTime: time,
     tableId,
     specialRequests,
+    performedBy: "ai_call",
   });
 
   if (!result.success) {
@@ -398,7 +407,6 @@ async function handleModifyReservation(
   callerPhone: string | undefined,
   requestId: string
 ): Promise<string> {
-  const guestName = (args.guest_name as string) || undefined;
   const originalDate = args.original_date as string;
   const newDate = (args.new_date as string) || undefined;
   const newTime = (args.new_time as string) || undefined;
@@ -408,12 +416,16 @@ async function handleModifyReservation(
     requestId,
     venueId,
     callerPhone,
-    guestName,
     originalDate,
     newDate,
     newTime,
     newPartySize,
   });
+
+  if (!callerPhone) {
+    log("WARN", "modify_reservation:no-caller-phone", { requestId });
+    return "I'm unable to identify your phone number. Please call back from the phone number used to make the reservation.";
+  }
 
   // Find the existing reservation
   const reservations = await getReservationsForDate(supabase, venueId, originalDate);
@@ -438,20 +450,16 @@ async function handleModifyReservation(
     })),
   });
 
-  // Try phone first, then name
-  const match = findReservationMatch(reservations.data, callerPhone, guestName);
+  // Match strictly by caller's phone number
+  const match = findReservationByPhone(reservations.data, callerPhone);
 
   if (!match) {
     log("WARN", "modify_reservation:not-found", {
       requestId,
       callerPhone,
-      guestName,
       originalDate,
     });
-    if (!guestName) {
-      return `I couldn't find an active reservation for your phone number on ${formatDateSpoken(originalDate)}. Could you tell me the name the reservation is under?`;
-    }
-    return `I couldn't find an active reservation under ${guestName} for ${formatDateSpoken(originalDate)}. Could you check the name or date?`;
+    return `I couldn't find an active reservation under your phone number on ${formatDateSpoken(originalDate)}. Let me connect you with our team.`;
   }
 
   log("INFO", "modify_reservation:matched", {
@@ -502,7 +510,8 @@ async function handleModifyReservation(
     reservationDate: updatedDate,
     reservationTime: updatedTime,
     tableId: match.tableId as string | null | undefined,
-    specialRequests: specialRequests || (match.specialRequests as string | undefined),
+    specialRequests: specialRequests || (match.specialRequests as string | null) || undefined,
+    performedBy: "ai_call",
   });
 
   if (!result.success) {
@@ -524,7 +533,7 @@ async function handleModifyReservation(
     changes,
   });
 
-  return `Reservation for ${guestName} has been updated: ${changes.join(", ")}. The booking is now on ${formatDateSpoken(updatedDate)} at ${formatTimeSpoken(updatedTime)} for ${updatedPartySize} guests.`;
+  return `Reservation for ${match.guestName} has been updated: ${changes.join(", ")}. The booking is now on ${formatDateSpoken(updatedDate)} at ${formatTimeSpoken(updatedTime)} for ${updatedPartySize} guests.`;
 }
 
 async function handleCancelReservation(
@@ -533,16 +542,19 @@ async function handleCancelReservation(
   callerPhone: string | undefined,
   requestId: string
 ): Promise<string> {
-  const guestName = (args.guest_name as string) || undefined;
   const date = args.date as string;
 
   log("INFO", "cancel_reservation:params", {
     requestId,
     venueId,
     callerPhone,
-    guestName,
     date,
   });
+
+  if (!callerPhone) {
+    log("WARN", "cancel_reservation:no-caller-phone", { requestId });
+    return "I'm unable to identify your phone number. Please call back from the phone number used to make the reservation.";
+  }
 
   // Find matching reservation
   const reservations = await getReservationsForDate(supabase, venueId, date);
@@ -566,20 +578,16 @@ async function handleCancelReservation(
     })),
   });
 
-  // Try phone first, then name
-  const match = findReservationMatch(reservations.data, callerPhone, guestName);
+  // Match strictly by caller's phone number
+  const match = findReservationByPhone(reservations.data, callerPhone);
 
   if (!match) {
     log("WARN", "cancel_reservation:not-found", {
       requestId,
       callerPhone,
-      guestName,
       date,
     });
-    if (!guestName) {
-      return `I couldn't find an active reservation for your phone number on ${formatDateSpoken(date)}. Could you tell me the name the reservation is under?`;
-    }
-    return `I couldn't find an active reservation under ${guestName} for ${formatDateSpoken(date)}. Could you check the name or date?`;
+    return `I couldn't find an active reservation under your phone number on ${formatDateSpoken(date)}. Let me connect you with our team.`;
   }
 
   log("INFO", "cancel_reservation:matched", {
@@ -591,7 +599,8 @@ async function handleCancelReservation(
   const result = await cancelReservation(
     supabase,
     match.id,
-    "Cancelled via phone call"
+    "Cancelled via phone call",
+    "ai_call"
   );
 
   if (!result.success) {
@@ -607,7 +616,7 @@ async function handleCancelReservation(
     reservationId: match.id,
   });
 
-  return `The reservation for ${guestName} on ${formatDateSpoken(date)} at ${formatTimeSpoken(match.reservationTime)} has been cancelled. Is there anything else I can help with?`;
+  return `The reservation for ${match.guestName} on ${formatDateSpoken(date)} at ${formatTimeSpoken(match.reservationTime)} has been cancelled. Is there anything else I can help with?`;
 }
 
 async function handleGetReservations(
@@ -616,16 +625,19 @@ async function handleGetReservations(
   callerPhone: string | undefined,
   requestId: string
 ): Promise<string> {
-  const guestName = (args.guest_name as string) || undefined;
   const date = args.date as string;
 
   log("INFO", "get_reservations:params", {
     requestId,
     venueId,
     callerPhone,
-    guestName,
     date,
   });
+
+  if (!callerPhone) {
+    log("WARN", "get_reservations:no-caller-phone", { requestId });
+    return "I'm unable to identify your phone number. Please call back from the phone number used to make the reservation.";
+  }
 
   const reservations = await getReservationsForDate(supabase, venueId, date);
 
@@ -638,23 +650,14 @@ async function handleGetReservations(
   }
 
   const active = reservations.data.filter((r) => r.status !== "cancelled");
-
-  // Try phone match first, then name
-  let matches = callerPhone
-    ? active.filter((r) => normalizePhone(r.guestPhone) === normalizePhone(callerPhone))
-    : [];
-
-  if (matches.length === 0 && guestName) {
-    matches = active.filter((r) =>
-      r.guestName.toLowerCase().includes(guestName.toLowerCase())
-    );
-  }
+  const matches = active.filter(
+    (r) => normalizePhone(r.guestPhone) === normalizePhone(callerPhone)
+  );
 
   log("INFO", "get_reservations:result", {
     requestId,
     totalReservations: reservations.data.length,
     matchCount: matches.length,
-    matchedBy: matches.length > 0 && callerPhone ? "phone" : "name",
     matches: matches.map((r) => ({
       id: r.id,
       guestName: r.guestName,
@@ -665,10 +668,7 @@ async function handleGetReservations(
   });
 
   if (matches.length === 0) {
-    if (!guestName) {
-      return `I don't see any reservations for your phone number on ${formatDateSpoken(date)}. Could you tell me the name the reservation is under?`;
-    }
-    return `I don't see any reservations under ${guestName} for ${formatDateSpoken(date)}.`;
+    return `I don't see any reservations under your phone number on ${formatDateSpoken(date)}.`;
   }
 
   const details = matches
@@ -691,31 +691,19 @@ function normalizePhone(phone: string | null | undefined): string {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function findReservationMatch(
+function findReservationByPhone(
   reservations: any[],
-  callerPhone?: string,
-  guestName?: string
+  callerPhone?: string
 ) {
+  if (!callerPhone) return undefined;
+
   const active = reservations.filter(
     (r) => r.status !== "cancelled" && r.status !== "completed"
   );
 
-  // Try phone match first
-  if (callerPhone) {
-    const phoneMatch = active.find(
-      (r) => normalizePhone(r.guestPhone) === normalizePhone(callerPhone)
-    );
-    if (phoneMatch) return phoneMatch;
-  }
-
-  // Fall back to name match
-  if (guestName) {
-    return active.find(
-      (r) => r.guestName.toLowerCase() === guestName.toLowerCase()
-    );
-  }
-
-  return undefined;
+  return active.find(
+    (r) => normalizePhone(r.guestPhone) === normalizePhone(callerPhone)
+  );
 }
 
 async function getVenueIdByAssistant(

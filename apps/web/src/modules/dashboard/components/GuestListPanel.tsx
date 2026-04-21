@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format, parse, isToday, parseISO } from "date-fns";
-import { Plus, Calendar as CalendarIcon, Ban, Phone, Users, MapPin, Copy, Loader2, Check, Trash2, RotateCcw, Pencil, UserX, Clock } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Ban, Phone, Users, MapPin, Copy, Loader2, Check, CheckCircle2, Trash2, RotateCcw, Pencil, UserX, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -59,6 +59,7 @@ import {
   useCreateReservation,
   useUpdateReservation,
   useUpdateReservationStatus,
+  useUpdateWalkIn,
   useCancelReservation,
   useDeleteReservation,
 } from "../hooks/use-reservations";
@@ -79,7 +80,6 @@ interface GuestListPanelProps {
 function mapStatusToDisplay(status: ReservationStatus): ReservationDisplayStatus {
   switch (status) {
     case "pending":
-    case "confirmed":
       return "upcoming";
     case "seated":
       return "seated";
@@ -122,7 +122,6 @@ function buildLocalDate(dateStr: string, timeStr?: string): Date {
 function getStatusLabel(status: ReservationStatus): string {
   switch (status) {
     case "pending": return "Pending";
-    case "confirmed": return "Confirmed";
     case "seated": return "Seated";
     case "completed": return "Completed";
     case "cancelled": return "Cancelled";
@@ -134,7 +133,7 @@ type EffectiveStatus = "upcoming" | "likely-seated" | "elapsed" | "seated" | "co
 
 /**
  * Compute the visual status based on DB status + current time.
- * For pending/confirmed reservations, we infer whether the guest
+ * For pending reservations, we infer whether the guest
  * is likely seated (time window active) or done (window expired).
  */
 function getEffectiveStatus(
@@ -146,7 +145,7 @@ function getEffectiveStatus(
   if (reservation.status === "completed") return "completed";
   if (reservation.status === "cancelled" || reservation.status === "no_show") return "cancelled";
 
-  // For pending/confirmed, compute based on time
+  // For pending, compute based on time
   const [h, m] = reservation.reservationTime.split(":").map(Number);
   const [y, mo, d] = reservation.reservationDate.split("-").map(Number);
   const resStart = new Date(y, mo - 1, d, h, m, 0, 0);
@@ -217,7 +216,8 @@ function TimelineWithNowMarker({
         const effective = isViewingToday
           ? getEffectiveStatus(reservation, now)
           : "upcoming";
-        const isPast = effective === "elapsed" || effective === "completed";
+        const isElapsed = effective === "elapsed";
+        const isCompleted = effective === "completed";
         const isLikelySeated = effective === "likely-seated" || effective === "seated";
 
         return (
@@ -234,10 +234,14 @@ function TimelineWithNowMarker({
             )}
             <div
               onClick={() => onReservationClick(reservation)}
-              className={`relative flex items-center py-3.5 cursor-pointer transition-colors duration-150 rounded-lg hover:bg-gray-50 ${isPast ? "opacity-50" : ""}`}
+              className={`relative flex items-center py-3.5 cursor-pointer transition-colors duration-150 rounded-lg hover:bg-gray-50 ${isElapsed ? "opacity-50" : ""}`}
             >
               <div className="w-[60px] shrink-0 text-center whitespace-nowrap">
-                <span className={`text-[12px] font-semibold tracking-tight ${isPast ? "text-gray-400" : "text-gray-900"}`}>
+                <span
+                  className={`text-[12px] font-semibold tracking-tight ${
+                    isElapsed ? "text-gray-400" : isCompleted ? "text-gray-600" : "text-gray-900"
+                  }`}
+                >
                   {formatTime24to12(reservation.reservationTime)}
                 </span>
               </div>
@@ -249,7 +253,11 @@ function TimelineWithNowMarker({
               </div>
 
               <div className="flex-1 min-w-0 pl-2.5">
-                <div className={`font-semibold text-[13px] leading-tight truncate flex items-center gap-1.5 ${isPast ? "text-gray-400" : "text-gray-900"}`}>
+                <div
+                  className={`font-semibold text-[13px] leading-tight truncate flex items-center gap-1.5 ${
+                    isElapsed ? "text-gray-400" : isCompleted ? "text-gray-700" : "text-gray-900"
+                  }`}
+                >
                   {reservation.guestName}
                   {reservation.isWalkIn && (
                     <span className="inline-flex items-center px-1.5 py-0 rounded text-[9px] font-semibold bg-amber-50 text-amber-600 border border-amber-200 leading-tight shrink-0">
@@ -261,8 +269,18 @@ function TimelineWithNowMarker({
                       Seated
                     </span>
                   )}
+                  {isCompleted && (
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded text-[9px] font-semibold bg-green-50 text-green-700 border border-green-200 leading-tight shrink-0">
+                      <Check className="h-2.5 w-2.5" />
+                      Completed
+                    </span>
+                  )}
                 </div>
-                <div className={`text-[11px] mt-0.5 leading-tight ${isPast ? "text-gray-300" : "text-gray-400"}`}>
+                <div
+                  className={`text-[11px] mt-0.5 leading-tight ${
+                    isElapsed ? "text-gray-300" : isCompleted ? "text-gray-500" : "text-gray-400"
+                  }`}
+                >
                   {reservation.partySize} {reservation.partySize === 1 ? 'guest' : 'guests'}
                   <span className="mx-1 text-gray-300">·</span>
                   {reservation.tableIdentifier || "No table"}
@@ -316,6 +334,7 @@ export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation
 
   const createMutation = useCreateReservation(venueId, dateStr);
   const updateMutation = useUpdateReservation(venueId, dateStr);
+  const updateWalkInMutation = useUpdateWalkIn(venueId, dateStr);
   const statusMutation = useUpdateReservationStatus(venueId, dateStr);
   const cancelMutation = useCancelReservation(venueId, dateStr);
   const deleteMutation = useDeleteReservation(venueId, dateStr);
@@ -329,18 +348,19 @@ export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation
   }, [externalDetailReservation, onExternalDetailConsumed]);
 
   // --- React Hook Form ---
+  const emptyReservationForm: CreateReservationFormValues = {
+    guestName: "",
+    guestPhone: "",
+    partySize: 1,
+    reservationDate: "",
+    reservationTime: "",
+    tableId: null,
+    specialRequests: "",
+  };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const form = useForm<CreateReservationFormValues>({
     resolver: zodResolver(createReservationSchema) as any,
-    defaultValues: {
-      guestName: "",
-      guestPhone: "",
-      partySize: 1,
-      reservationDate: "",
-      reservationTime: "",
-      tableId: null,
-      specialRequests: "",
-    },
+    defaultValues: emptyReservationForm,
   });
 
   const watchDate = form.watch("reservationDate");
@@ -350,22 +370,14 @@ export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation
   // Open create dialog with pre-selected table (e.g. from table popup)
   useEffect(() => {
     if (externalCreateForTableId) {
-      form.reset({
-        guestName: "",
-        guestPhone: "",
-        partySize: 1,
-        reservationDate: "",
-        reservationTime: "",
-        tableId: externalCreateForTableId,
-        specialRequests: "",
-      });
+      form.reset({ ...emptyReservationForm, tableId: externalCreateForTableId });
       setEditingReservation(null);
       setIsNewReservationOpen(true);
       onExternalCreateConsumed?.();
     }
   }, [externalCreateForTableId, onExternalCreateConsumed, form]);
 
-  // Available tables for dropdown (don't filter by party size — user can see capacity in label)
+  // Available tables for dropdown — exclude tables whose capacity is smaller than the party size
   const { data: tableOptions = [] } = useAvailableTables(
     venueId,
     watchDate || undefined,
@@ -374,13 +386,19 @@ export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation
     editingReservation?.id
   );
 
+  const filteredTableOptions = useMemo(() => {
+    const size = Number(watchPartySize);
+    if (!Number.isFinite(size) || size <= 1) return tableOptions;
+    return tableOptions.filter((t) => t.maxCapacity >= size);
+  }, [tableOptions, watchPartySize]);
+
   const tablesByFloor = useMemo(() => {
     const grouped: Record<string, TableOption[]> = {};
-    for (const t of tableOptions) {
+    for (const t of filteredTableOptions) {
       (grouped[t.floorName] = grouped[t.floorName] || []).push(t);
     }
     return grouped;
-  }, [tableOptions]);
+  }, [filteredTableOptions]);
 
   // --- Filtered reservations ---
   const filteredReservations = useMemo(() => {
@@ -408,8 +426,9 @@ export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation
         return <div className={`${base} bg-green-500 ring-2 ring-green-200`} />;
       case "seated":
         return <div className={`${base} bg-green-500`} />;
-      case "elapsed":
       case "completed":
+        return <CheckCircle2 className="w-[14px] h-[14px] text-green-500 fill-green-50" />;
+      case "elapsed":
         return <div className={`${base} bg-gray-300`} />;
       case "cancelled":
         return <div className={`${base} bg-red-500`} />;
@@ -435,19 +454,46 @@ export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation
     setDetailReservation(null);
     setEditingReservation(reservation);
     form.reset({
-      guestName: reservation.guestName,
-      guestPhone: reservation.guestPhone,
+      // For walk-ins, seed placeholder values so the full-reservation schema
+      // (which requires name + phone) doesn't block submit for hidden fields.
+      // These values are ignored — walk-in edits go through updateWalkIn.
+      guestName: reservation.isWalkIn ? "Walk-in" : reservation.guestName,
+      guestPhone: reservation.isWalkIn ? "walk-in-placeholder" : reservation.guestPhone,
       partySize: reservation.partySize,
       reservationDate: reservation.reservationDate,
       reservationTime: reservation.reservationTime.slice(0, 5),
       tableId: reservation.tableId || null,
-      specialRequests: reservation.specialRequests || "",
+      specialRequests: reservation.isWalkIn ? "" : (reservation.specialRequests || ""),
     });
     setIsNewReservationOpen(true);
   };
 
   const onSubmitReservation = async (values: CreateReservationFormValues) => {
     if (editingReservation) {
+      if (editingReservation.isWalkIn) {
+        const tableId = values.tableId || editingReservation.tableId;
+        if (!tableId) {
+          toast.error("A walk-in must be seated at a table");
+          return;
+        }
+        const result = await updateWalkInMutation.mutateAsync({
+          id: editingReservation.id,
+          partySize: values.partySize,
+          tableId,
+          reservationDate: values.reservationDate,
+          reservationTime: values.reservationTime,
+        });
+        if (result.success) {
+          toast.success("Walk-in updated successfully");
+          setIsNewReservationOpen(false);
+          setEditingReservation(null);
+          form.reset(emptyReservationForm);
+        } else {
+          toast.error(result.error || "Failed to update walk-in");
+        }
+        return;
+      }
+
       const result = await updateMutation.mutateAsync({
         id: editingReservation.id,
         venueId,
@@ -464,7 +510,7 @@ export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation
         toast.success("Reservation updated successfully");
         setIsNewReservationOpen(false);
         setEditingReservation(null);
-        form.reset();
+        form.reset(emptyReservationForm);
       } else {
         toast.error(result.error || "Failed to update reservation");
       }
@@ -483,7 +529,7 @@ export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation
       if (result.success) {
         toast.success("Reservation created successfully");
         setIsNewReservationOpen(false);
-        form.reset();
+        form.reset(emptyReservationForm);
       } else {
         toast.error(result.error || "Failed to create reservation");
       }
@@ -562,11 +608,11 @@ export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation
   const handleRestoreReservation = async (reservation: ReservationWithDetails) => {
     const result = await statusMutation.mutateAsync({
       id: reservation.id,
-      status: "confirmed",
+      status: "pending",
     });
     if (result.success) {
       toast.success(`Reservation for ${reservation.guestName} restored`);
-      setDetailReservation((prev) => prev?.id === reservation.id ? { ...prev, status: "confirmed" } : prev);
+      setDetailReservation((prev) => prev?.id === reservation.id ? { ...prev, status: "pending" } : prev);
     } else {
       toast.error(result.error || "Failed to restore reservation");
     }
@@ -597,55 +643,74 @@ export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation
                 onOpenChange={(open) => {
                   setIsNewReservationOpen(open);
                   if (!open) {
-                    form.reset();
+                    form.reset(emptyReservationForm);
                     setEditingReservation(null);
                   }
                 }}
               >
                 <DialogTrigger asChild>
-                  <Button size="sm" className="h-8 bg-green-500 hover:bg-green-600 text-white gap-1.5 shadow-md rounded-full px-4">
+                  <Button
+                    size="sm"
+                    className="h-8 bg-green-500 hover:bg-green-600 text-white gap-1.5 shadow-md rounded-full px-4"
+                    onClick={() => {
+                      setEditingReservation(null);
+                      form.reset(emptyReservationForm);
+                    }}
+                  >
                     <Plus className="h-3.5 w-3.5" />
                     New Reservation
                   </Button>
                 </DialogTrigger>
               <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
-                  <DialogTitle>{editingReservation ? "Edit Reservation" : "New Reservation"}</DialogTitle>
+                  <DialogTitle>
+                    {editingReservation
+                      ? editingReservation.isWalkIn
+                        ? "Edit Walk-In"
+                        : "Edit Reservation"
+                      : "New Reservation"}
+                  </DialogTitle>
                   <DialogDescription>
                     {editingReservation
-                      ? "Update the reservation details below."
+                      ? editingReservation.isWalkIn
+                        ? "Update the walk-in details below."
+                        : "Update the reservation details below."
                       : "Create a new reservation for your guests."}
                   </DialogDescription>
                 </DialogHeader>
 
                 <form onSubmit={form.handleSubmit(onSubmitReservation)} className="space-y-4 py-4">
-                  {/* Guest Name */}
-                  <div className="space-y-1.5">
-                    <Label htmlFor="guestName" className="text-sm">Guest Name</Label>
-                    <Input
-                      id="guestName"
-                      placeholder="e.g., John Smith"
-                      className="h-10"
-                      {...form.register("guestName")}
-                    />
-                    {form.formState.errors.guestName && (
-                      <p className="text-xs text-red-500">{form.formState.errors.guestName.message}</p>
-                    )}
-                  </div>
+                  {/* Guest Name — hidden for walk-in edits */}
+                  {!editingReservation?.isWalkIn && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="guestName" className="text-sm">Guest Name</Label>
+                      <Input
+                        id="guestName"
+                        placeholder="e.g., John Smith"
+                        className="h-10"
+                        {...form.register("guestName")}
+                      />
+                      {form.formState.errors.guestName && (
+                        <p className="text-xs text-red-500">{form.formState.errors.guestName.message}</p>
+                      )}
+                    </div>
+                  )}
 
-                  {/* Phone */}
-                  <div className="space-y-1.5">
-                    <Label htmlFor="guestPhone" className="text-sm">Phone</Label>
-                    <Input
-                      id="guestPhone"
-                      placeholder="+1 (555) 123-4567"
-                      className="h-10"
-                      {...form.register("guestPhone")}
-                    />
-                    {form.formState.errors.guestPhone && (
-                      <p className="text-xs text-red-500">{form.formState.errors.guestPhone.message}</p>
-                    )}
-                  </div>
+                  {/* Phone — hidden for walk-in edits */}
+                  {!editingReservation?.isWalkIn && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="guestPhone" className="text-sm">Phone</Label>
+                      <Input
+                        id="guestPhone"
+                        placeholder="+1 (555) 123-4567"
+                        className="h-10"
+                        {...form.register("guestPhone")}
+                      />
+                      {form.formState.errors.guestPhone && (
+                        <p className="text-xs text-red-500">{form.formState.errors.guestPhone.message}</p>
+                      )}
+                    </div>
+                  )}
 
                   {/* Total Guests */}
                   <div className="space-y-1.5">
@@ -656,7 +721,7 @@ export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation
                       min={1}
                       placeholder="e.g., 2"
                       className="h-10"
-                      {...form.register("partySize", { valueAsNumber: true })}
+                      {...form.register("partySize")}
                     />
                     {form.formState.errors.partySize && (
                       <p className="text-xs text-red-500">{form.formState.errors.partySize.message}</p>
@@ -719,31 +784,43 @@ export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation
                     </Select>
                     <p className="text-xs text-muted-foreground">
                       {watchDate && watchTime
-                        ? `Showing ${tableOptions.length} available tables`
+                        ? `Showing ${filteredTableOptions.length} available tables`
                         : "Select date & time to see available tables"}
                     </p>
                   </div>
 
-                  {/* Notes */}
-                  <div className="space-y-1.5">
-                    <Label htmlFor="specialRequests" className="text-sm">Notes</Label>
-                    <Textarea
-                      id="specialRequests"
-                      placeholder="Special requests, dietary restrictions, etc."
-                      className="resize-none"
-                      rows={3}
-                      {...form.register("specialRequests")}
-                    />
-                  </div>
+                  {/* Notes — hidden for walk-in edits */}
+                  {!editingReservation?.isWalkIn && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="specialRequests" className="text-sm">Notes</Label>
+                      <Textarea
+                        id="specialRequests"
+                        placeholder="Special requests, dietary restrictions, etc."
+                        className="resize-none"
+                        rows={3}
+                        {...form.register("specialRequests")}
+                      />
+                    </div>
+                  )}
 
                   {/* Action Buttons */}
                   <div className="flex gap-3 pt-2">
                     <Button
                       type="submit"
-                      disabled={editingReservation ? updateMutation.isPending : createMutation.isPending}
+                      disabled={
+                        editingReservation
+                          ? editingReservation.isWalkIn
+                            ? updateWalkInMutation.isPending
+                            : updateMutation.isPending
+                          : createMutation.isPending
+                      }
                       className="flex-1 bg-green-500 hover:bg-green-600 text-white gap-2"
                     >
-                      {(editingReservation ? updateMutation.isPending : createMutation.isPending) ? (
+                      {(editingReservation
+                        ? editingReservation.isWalkIn
+                          ? updateWalkInMutation.isPending
+                          : updateMutation.isPending
+                        : createMutation.isPending) ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : editingReservation ? (
                         <Check className="h-4 w-4" />
@@ -881,7 +958,8 @@ export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation
                     <span>{detailReservation.partySize} {detailReservation.partySize === 1 ? 'guest' : 'guests'}</span>
                   </div>
 
-                  {/* Phone */}
+                  {/* Phone — hidden when no phone number is saved (e.g. walk-ins) */}
+                  {detailReservation.guestPhone?.trim() && (
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 text-sm text-gray-700 min-w-0">
                       <Phone className="h-4 w-4 text-gray-400 shrink-0" />
@@ -906,6 +984,7 @@ export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation
                       </Button>
                     </div>
                   </div>
+                  )}
 
                   {/* Table + Floor */}
                   <div className="flex items-center gap-3 text-sm text-gray-700">
@@ -928,7 +1007,7 @@ export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation
 
                 {/* Footer Actions */}
                 <div className="px-5 py-4 border-t border-gray-100 space-y-2.5">
-                  {(detailReservation.status === "pending" || detailReservation.status === "confirmed") && (
+                  {detailReservation.status === "pending" && (
                     <>
                       <Button
                         size="sm"

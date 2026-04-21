@@ -6,6 +6,7 @@ import { headers } from "next/headers";
 import { Step1FormData, Step2FormData, Step3FormData, VenueData } from "./types";
 import { VoiceOption } from "@/lib/vapi";
 import { createVapiAssistant } from "@/lib/domain/vapi/service";
+import { normalizeVenue } from "@/lib/domain/venue/normalize";
 
 async function getSession() {
   const session = await auth.api.getSession({
@@ -25,7 +26,7 @@ export async function getVenue(): Promise<VenueData | null> {
     .single();
 
   if (error || !data) return null;
-  return data as VenueData;
+  return normalizeVenue(data);
 }
 
 export async function saveStep1(formData: Step1FormData): Promise<{ success: boolean; error?: string }> {
@@ -419,10 +420,7 @@ export async function purchasePhoneNumber(
       return { success: false, error: "Venue not found" };
     }
 
-    // Validate we have AI configuration
-    // Note: Supabase returns snake_case column names, so we need to check the raw data
-    const venueData = venue as any;
-    const aiConfig = venueData.ai_config || venue.aiConfig;
+    const aiConfig = venue.aiConfig;
 
     if (!aiConfig?.ai_voice_id || !aiConfig?.ai_custom_greeting) {
       console.error("AI config missing:", { aiConfig, venue });

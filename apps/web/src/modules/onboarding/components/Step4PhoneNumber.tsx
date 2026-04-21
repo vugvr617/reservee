@@ -255,23 +255,6 @@ export default function Step4PhoneNumber({ onBack, onPhoneNumberPurchased, initi
 
         </div>
 
-        {/* Fallback Phone Number */}
-        <div className="space-y-2">
-          <Label className="text-sm font-medium text-gray-700">
-            Fallback Phone Number (Optional)
-          </Label>
-          <Input
-            type="tel"
-            placeholder="Your personal number (e.g., +1234567890)"
-            value={fallbackPhone}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFallbackPhone(e.target.value)}
-            className="h-12 rounded-xl border-gray-200"
-          />
-          <p className="text-xs text-gray-500">
-            If the AI cannot handle a call, it will be forwarded to this number
-          </p>
-        </div>
-
         {/* Reassurance micro-copy */}
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
           <div className="flex gap-2 text-sm text-blue-700">

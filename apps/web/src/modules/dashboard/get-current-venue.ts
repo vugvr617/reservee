@@ -24,3 +24,15 @@ export async function getCurrentVenue(): Promise<string> {
 
   return venue.id;
 }
+
+export async function getCurrentPerformer(): Promise<string> {
+  const session = await auth.api.getSession({
+    headers: await import("next/headers").then((mod) => mod.headers()),
+  });
+
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized");
+  }
+
+  return `owner:${session.user.id}`;
+}

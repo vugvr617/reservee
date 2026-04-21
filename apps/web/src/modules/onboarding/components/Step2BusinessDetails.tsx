@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Clock, Loader2, Phone } from "lucide-react";
+import { Clock, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { saveStep2 } from "../actions";
 import { TimeSlot, VenueData } from "../types";
@@ -47,10 +47,6 @@ export default function Step2BusinessDetails({
     }
 
     setIsLoading(false);
-  };
-
-  const handleChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const toggleDayClosed = (index: number) => {
@@ -141,34 +137,6 @@ export default function Step2BusinessDetails({
                 </button>
               </div>
             ))}
-          </div>
-        </div>
-
-        {/* Fallback Phone Number */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Phone className="h-5 w-5 text-gray-700" />
-            <Label className="text-base font-semibold text-gray-900">
-              Contact Information
-            </Label>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="fallbackPhone" className="text-sm font-medium text-gray-700">
-              Fallback Phone Number
-            </Label>
-            <Input
-              id="fallbackPhone"
-              type="tel"
-              placeholder="+1 (555) 987-6543"
-              value={formData.fallbackPhone}
-              onChange={(e) => handleChange("fallbackPhone", e.target.value)}
-              className="h-12 bg-white border-gray-200 rounded-xl focus:border-green-400 focus:ring-green-400/20"
-              required
-            />
-            <p className="text-xs text-gray-500">
-              For forwarding calls when AI limit is reached
-            </p>
           </div>
         </div>
 
