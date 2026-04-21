@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bot, Loader2, Volume2 } from "lucide-react";
+import { Bot, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { saveStep3, fetchElevenLabsVoices } from "../actions";
 import { VenueData } from "../types";
@@ -172,9 +172,12 @@ export default function Step3AIReceptionist({
         {selectedVoice && (
           <div className="space-y-3">
             <div>
-              <p className="text-sm text-gray-600 mb-1">
-                Selected voice: <span className="font-medium text-gray-900">{selectedVoice.name}</span>
-              </p>
+              <div className="flex items-center gap-3 mb-1 flex-wrap">
+                <p className="text-sm text-gray-600">
+                  Selected voice: <span className="font-medium text-gray-900">{selectedVoice.name}</span>
+                </p>
+                <VoicePreview key={selectedVoice.voiceId} voice={selectedVoice} />
+              </div>
               <p className="text-xs text-gray-500">
                 {selectedVoice.description}
               </p>

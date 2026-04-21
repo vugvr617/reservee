@@ -2,9 +2,19 @@
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Select, SelectItem } from "@heroui/react";
-import { Phone, Loader2, Check } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Phone, Loader2, Check, Info } from "lucide-react";
 import { useState, useEffect } from "react";
 import {
   fetchAvailableNumbers,
@@ -23,19 +33,20 @@ type Step4Phase =
   | "selecting"
   | "purchasing";
 
-// Country data with flags
+// Country data with flags. Only countries where Twilio allows instant
+// purchase without a verified regulatory bundle are enabled in the MVP.
 const COUNTRIES = [
-  { value: "Germany", label: "Germany", flag: "🇩🇪" },
-  { value: "United States", label: "United States", flag: "🇺🇸" },
-  { value: "United Kingdom", label: "United Kingdom", flag: "🇬🇧" },
-  { value: "France", label: "France", flag: "🇫🇷" },
-  { value: "Spain", label: "Spain", flag: "🇪🇸" },
-  { value: "Italy", label: "Italy", flag: "🇮🇹" },
-  { value: "Netherlands", label: "Netherlands", flag: "🇳🇱" },
-  { value: "Poland", label: "Poland", flag: "🇵🇱" },
-  { value: "Austria", label: "Austria", flag: "🇦🇹" },
-  { value: "Belgium", label: "Belgium", flag: "🇧🇪" },
-  { value: "Hungary", label: "Hungary", flag: "🇭🇺" },
+  { value: "United States", label: "United States", flag: "🇺🇸", enabled: true },
+  { value: "United Kingdom", label: "United Kingdom", flag: "🇬🇧", enabled: true },
+  { value: "Hungary", label: "Hungary", flag: "🇭🇺", enabled: false },
+  { value: "Germany", label: "Germany", flag: "🇩🇪", enabled: false },
+  { value: "France", label: "France", flag: "🇫🇷", enabled: false },
+  { value: "Spain", label: "Spain", flag: "🇪🇸", enabled: false },
+  { value: "Italy", label: "Italy", flag: "🇮🇹", enabled: false },
+  { value: "Netherlands", label: "Netherlands", flag: "🇳🇱", enabled: false },
+  { value: "Poland", label: "Poland", flag: "🇵🇱", enabled: false },
+  { value: "Austria", label: "Austria", flag: "🇦🇹", enabled: false },
+  { value: "Belgium", label: "Belgium", flag: "🇧🇪", enabled: false },
 ];
 
 export default function Step4PhoneNumber({ onBack, onPhoneNumberPurchased, initialData }: Step4PhoneNumberProps) {
@@ -44,7 +55,11 @@ export default function Step4PhoneNumber({ onBack, onPhoneNumberPurchased, initi
   const [phase, setPhase] = useState<Step4Phase>(initialPhase);
   const [availableNumbers, setAvailableNumbers] = useState<PhoneNumber[]>([]);
   const [selectedNumber, setSelectedNumber] = useState<PhoneNumber | null>(null);
-  const [selectedCountry, setSelectedCountry] = useState<string>(initialData?.country || "Germany");
+  const [selectedCountry, setSelectedCountry] = useState<string>(
+    initialData?.country && COUNTRIES.find((c) => c.value === initialData.country)?.enabled
+      ? initialData.country
+      : "United States"
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fallbackPhone, setFallbackPhone] = useState<string>(initialData?.fallbackPhone || "");
@@ -174,22 +189,56 @@ export default function Step4PhoneNumber({ onBack, onPhoneNumberPurchased, initi
           <Label className="text-sm font-medium text-gray-700">
             Country
           </Label>
-          <Select
-            label="Select country"
-            placeholder="Choose a country"
-            selectedKeys={[selectedCountry]}
-            onSelectionChange={(keys) => {
-              const value = Array.from(keys)[0] as string;
-              if (value) handleCountryChange(value);
-            }}
-            className="max-w-full"
-          >
-            {COUNTRIES.map((country) => (
-              <SelectItem key={country.value}>
-              {country.label}
-              </SelectItem>
-            ))}
+          <Select value={selectedCountry} onValueChange={handleCountryChange}>
+            <SelectTrigger className="w-full h-12 rounded-xl border-gray-200">
+              <SelectValue placeholder="Choose a country" />
+            </SelectTrigger>
+            <SelectContent className="bg-white">
+              {COUNTRIES.map((country) => (
+                <SelectItem
+                  key={country.value}
+                  value={country.value}
+                  disabled={!country.enabled}
+                >
+                  <span className="flex items-center gap-2">
+                    <span>{country.flag}</span>
+                    <span>{country.label}</span>
+                    {!country.enabled && (
+                      <span className="text-[10px] uppercase tracking-wider text-gray-400 ml-1">
+                        Coming soon
+                      </span>
+                    )}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                <Info className="h-3.5 w-3.5" />
+                <span className="underline decoration-dotted underline-offset-2">
+                  Why are some countries unavailable?
+                </span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent
+              side="bottom"
+              align="start"
+              className="max-w-xs bg-white text-gray-700 border border-gray-200 shadow-lg"
+            >
+              <p className="text-xs leading-relaxed">
+                Twilio requires a verified local address to provision phone
+                numbers in most non-US countries. Supporting that compliance
+                flow is out of scope for the MVP, so only countries where we
+                can instantly purchase numbers are shown.
+              </p>
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         {/* Phone Number Selection */}
@@ -209,26 +258,24 @@ export default function Step4PhoneNumber({ onBack, onPhoneNumberPurchased, initi
             </div>
           ) : (
             <Select
-              label="Select phone number"
-              placeholder="Choose a phone number"
-              selectedKeys={selectedNumber ? new Set([selectedNumber.number]) : new Set()}
-              onSelectionChange={(keys) => {
-                const value = Array.from(keys)[0] as string;
-                if (value) handleNumberChange(value);
-              }}
-              classNames={{
-                trigger: "h-12 rounded-xl border-gray-200",
-                value: "text-gray-900",
-              }}
+              value={selectedNumber?.number ?? ""}
+              onValueChange={handleNumberChange}
             >
-              {availableNumbers.map((number) => (
-                <SelectItem
-                  key={number.number}
-                  description={`$${number.monthlyPrice.toFixed(2)}/month`}
-                >
-                  {number.formattedNumber}
-                </SelectItem>
-              ))}
+              <SelectTrigger className="w-full h-12 rounded-xl border-gray-200">
+                <SelectValue placeholder="Choose a phone number" />
+              </SelectTrigger>
+              <SelectContent className="bg-white">
+                {availableNumbers.map((number) => (
+                  <SelectItem key={number.number} value={number.number}>
+                    <span className="flex items-center gap-2">
+                      <span className="font-medium">{number.formattedNumber}</span>
+                      <span className="text-xs text-gray-500">
+                        ${number.monthlyPrice.toFixed(2)}/month
+                      </span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           )}
 
@@ -257,8 +304,8 @@ export default function Step4PhoneNumber({ onBack, onPhoneNumberPurchased, initi
 
         {/* Reassurance micro-copy */}
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-          <div className="flex gap-2 text-sm text-blue-700">
-            <span className="text-blue-500 shrink-0">ℹ️</span>
+          <div className="flex gap-2.5 text-sm text-blue-700">
+            <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
             <div>
               <p>No calls will be received until you test the number in the next step.</p>
               <p className="mt-1">You can change this number later.</p>

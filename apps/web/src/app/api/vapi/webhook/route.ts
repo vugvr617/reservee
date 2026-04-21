@@ -324,10 +324,7 @@ async function handleCreateReservation(
   requestId: string
 ): Promise<string> {
   const guestName = args.guest_name as string;
-  const argPhone = args.guest_phone as string | undefined;
-  const guestPhone = (argPhone && argPhone.length > 3 && !argPhone.match(/^[+]?0+$/))
-    ? argPhone
-    : callerPhone || "";
+  const guestPhone = callerPhone || "";
   const date = args.date as string;
   const time = args.time as string;
   const partySize = args.party_size as number;

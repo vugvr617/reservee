@@ -110,7 +110,6 @@ export default function OnboardingClient({ initialData }: OnboardingClientProps)
             )}
             {currentStep === 5 && (
               <Step5TestCall
-                onBack={handleBack}
                 onComplete={handleComplete}
                 phoneNumber={purchasedPhoneNumber || ""}
               />
