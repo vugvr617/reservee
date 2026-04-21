@@ -422,95 +422,149 @@ export async function purchasePhoneNumber(
 
     const aiConfig = venue.aiConfig;
 
-    if (!aiConfig?.ai_voice_id || !aiConfig?.ai_custom_greeting) {
+    if (!aiConfig?.ai_voice_id) {
       console.error("AI config missing:", { aiConfig, venue });
       return { success: false, error: "AI configuration not set" };
     }
 
-    // STEP 1: Purchase number from Twilio (COMMENTED OUT - using already purchased number)
-    // const twilio = require("twilio")(
-    //   process.env.TWILIO_ACCOUNT_SID,
-    //   process.env.TWILIO_AUTH_TOKEN
-    // );
-
-    // const purchasedNumber = await twilio.incomingPhoneNumbers.create({
-    //   phoneNumber: phoneNumber,
-    //   voiceUrl: "", // Will be set by Vapi
-    //   voiceMethod: "POST",
-    //   addressRequirements: "none", // Skip address validation
-    // });
-
-    // console.log("✅ Purchased Twilio number:", purchasedNumber.sid);
-
-    // TEMPORARY: Using already purchased number
-    const hardcodedPhoneNumber = "+13613091761"; // (361) 309-1761
-    const purchasedNumber = { sid: "TEMP_SID_" + Date.now() }; // Temporary SID
-
-    console.log("✅ Using hardcoded Twilio number:", hardcodedPhoneNumber);
-
-    // Extract country code from phone number
-    const phoneCountry = extractCountryCode(hardcodedPhoneNumber);
-
-    // STEP 2: Create Vapi Assistant
-    const assistant = await createVapiAssistant(venue, aiConfig, fallbackPhone);
-
-    console.log("Created Vapi assistant:", assistant.id);
-
-    // STEP 3: Import number to Vapi
-    console.log("📞 Importing to Vapi with phone number:", hardcodedPhoneNumber);
-
-    const vapiResponse = await fetch("https://api.vapi.ai/phone-number/import/twilio", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.VAPI_PRIVATE_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        twilioPhoneNumber: hardcodedPhoneNumber, // Must use twilioPhoneNumber, not phoneNumber
-        twilioAccountSid: process.env.TWILIO_ACCOUNT_SID!,
-        twilioAuthToken: process.env.TWILIO_AUTH_TOKEN!,
-        assistantId: assistant.id,
-      }),
-    });
-
-    if (!vapiResponse.ok) {
-      const errorText = await vapiResponse.text();
-      throw new Error(`Vapi import failed: ${errorText}`);
-    }
-
-    const vapiImport = await vapiResponse.json();
-    console.log("✅ Imported to Vapi:", vapiImport.id);
-
-    // STEP 4: Save to phone_numbers table
-    const { error: phoneError } = await supabase
+    // STEP 1: Check for existing phone number — reuse it across retries so we
+    // don't burn Twilio money on every Step 4 re-submit.
+    const { data: existingPhone } = await supabase
       .from("phone_numbers")
-      .insert({
-        venue_id: venue.id,
-        phone_number: hardcodedPhoneNumber,
-        phone_country: phoneCountry,
-        fallback_phone_number: fallbackPhone || null,
-        phone_provider: 'twilio',
-        phone_provider_sid: purchasedNumber.sid,
-        monthly_cost: null, // Can be extracted from Twilio pricing if needed
-        vapi_phone_id: vapiImport.id,
-        vapi_assistant_id: assistant.id,
-        phone_status: 'active',
-        is_primary: true, // First phone is primary
-        purchased_at: new Date().toISOString(),
+      .select("*")
+      .eq("venue_id", venue.id)
+      .eq("is_primary", true)
+      .maybeSingle();
+
+    let twilioNumber: string;
+    let twilioSid: string;
+    let vapiPhoneId: string | null = existingPhone?.vapi_phone_id ?? null;
+
+    if (existingPhone) {
+      console.log("♻️ Reusing existing Twilio number:", existingPhone.phone_number);
+      twilioNumber = existingPhone.phone_number;
+      twilioSid = existingPhone.phone_provider_sid;
+    } else {
+      const twilio = require("twilio")(
+        process.env.TWILIO_ACCOUNT_SID,
+        process.env.TWILIO_AUTH_TOKEN
+      );
+
+      const purchasedNumber = await twilio.incomingPhoneNumbers.create({
+        phoneNumber: phoneNumber,
+        voiceUrl: "",
+        voiceMethod: "POST",
+        addressRequirements: "none",
       });
 
-    if (phoneError) {
-      console.error("Failed to save phone number:", phoneError);
-      return { success: false, error: phoneError.message };
+      console.log("✅ Purchased Twilio number:", purchasedNumber.sid, purchasedNumber.phoneNumber);
+      twilioNumber = phoneNumber;
+      twilioSid = purchasedNumber.sid;
     }
 
-    // STEP 5: Update venue with vapi_agent_id, ai_status, and move to Step 5
+    const phoneCountry = extractCountryCode(twilioNumber);
+
+    // STEP 2: Delete the previous Vapi assistant (if any) so we don't leave orphans
+    if (venue.vapiAgentId) {
+      console.log("🗑️ Deleting previous Vapi assistant:", venue.vapiAgentId);
+      const deleteRes = await fetch(`https://api.vapi.ai/assistant/${venue.vapiAgentId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${process.env.VAPI_PRIVATE_KEY}` },
+      });
+      if (!deleteRes.ok && deleteRes.status !== 404) {
+        console.warn("⚠️ Failed to delete old Vapi assistant:", await deleteRes.text());
+      }
+    }
+
+    // STEP 3: Create a fresh Vapi assistant
+    const assistant = await createVapiAssistant(venue, aiConfig, fallbackPhone);
+    console.log("Created Vapi assistant:", assistant.id);
+
+    // STEP 4: Bind the phone number to the new assistant
+    if (vapiPhoneId) {
+      console.log("🔗 Updating existing Vapi phone-number binding:", vapiPhoneId);
+      const patchRes = await fetch(`https://api.vapi.ai/phone-number/${vapiPhoneId}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${process.env.VAPI_PRIVATE_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ assistantId: assistant.id }),
+      });
+      if (!patchRes.ok) {
+        throw new Error(`Vapi phone-number patch failed: ${await patchRes.text()}`);
+      }
+    } else {
+      console.log("📞 Importing to Vapi with phone number:", twilioNumber);
+      const vapiResponse = await fetch("https://api.vapi.ai/phone-number/import/twilio", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.VAPI_PRIVATE_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          twilioPhoneNumber: twilioNumber,
+          twilioAccountSid: process.env.TWILIO_ACCOUNT_SID!,
+          twilioAuthToken: process.env.TWILIO_AUTH_TOKEN!,
+          assistantId: assistant.id,
+        }),
+      });
+
+      if (!vapiResponse.ok) {
+        throw new Error(`Vapi import failed: ${await vapiResponse.text()}`);
+      }
+
+      const vapiImport = await vapiResponse.json();
+      vapiPhoneId = vapiImport.id;
+      console.log("✅ Imported to Vapi:", vapiPhoneId);
+    }
+
+    // STEP 5: Upsert phone_numbers row
+    if (existingPhone) {
+      const { error: phoneError } = await supabase
+        .from("phone_numbers")
+        .update({
+          fallback_phone_number: fallbackPhone || null,
+          vapi_assistant_id: assistant.id,
+          phone_status: 'active',
+        })
+        .eq("id", existingPhone.id);
+
+      if (phoneError) {
+        console.error("Failed to update phone number row:", phoneError);
+        return { success: false, error: phoneError.message };
+      }
+    } else {
+      const { error: phoneError } = await supabase
+        .from("phone_numbers")
+        .insert({
+          venue_id: venue.id,
+          phone_number: twilioNumber,
+          phone_country: phoneCountry,
+          fallback_phone_number: fallbackPhone || null,
+          phone_provider: 'twilio',
+          phone_provider_sid: twilioSid,
+          monthly_cost: null,
+          vapi_phone_id: vapiPhoneId,
+          vapi_assistant_id: assistant.id,
+          phone_status: 'active',
+          is_primary: true,
+          purchased_at: new Date().toISOString(),
+        });
+
+      if (phoneError) {
+        console.error("Failed to save phone number:", phoneError);
+        return { success: false, error: phoneError.message };
+      }
+    }
+
+    // STEP 6: Update venue with vapi_agent_id, ai_status, and move to Step 5
     const { error: venueError } = await supabase
       .from("venue")
       .update({
         vapi_agent_id: assistant.id,
-        ai_status: 'ready', // Ready: assistant created and linked successfully
-        onboardingStep: 5, // Move to Step 5 (Test Call)
+        ai_status: 'ready',
+        onboardingStep: 5,
         updatedAt: new Date().toISOString(),
       })
       .eq("userId", session.user.id);

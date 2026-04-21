@@ -141,9 +141,9 @@ function buildAssistantConfig(
   aiConfig: AIConfig,
   fallbackPhone: string
 ) {
-  const serverUrl = process.env.NEXT_PUBLIC_APP_URL
-    ? `${process.env.NEXT_PUBLIC_APP_URL}/api/vapi/webhook`
-    : undefined;
+  const webhookBase =
+    process.env.VAPI_WEBHOOK_URL || "https://reservee-web.vercel.app";
+  const serverUrl = `${webhookBase}/api/vapi/webhook`;
 
   const systemPrompt = buildSystemPrompt(venue, fallbackPhone);
   const greeting =
@@ -167,7 +167,7 @@ function buildAssistantConfig(
       ],
       tools: VAPI_TOOLS as any,
     },
-    server: serverUrl ? { url: serverUrl, timeoutSeconds: 20 } : undefined,
+    server: { url: serverUrl, timeoutSeconds: 20 },
     endCallFunctionEnabled: true,
     backgroundDenoisingEnabled: false,
     artifactPlan: {

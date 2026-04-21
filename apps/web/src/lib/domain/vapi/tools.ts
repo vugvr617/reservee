@@ -38,10 +38,6 @@ export const VAPI_TOOLS = [
             type: "string",
             description: "Full name of the guest",
           },
-          guest_phone: {
-            type: "string",
-            description: "Phone number of the guest",
-          },
           date: {
             type: "string",
             description: "Date in YYYY-MM-DD format",
@@ -60,7 +56,7 @@ export const VAPI_TOOLS = [
               "Any special requests such as dietary needs, celebrations, or seating preferences",
           },
         },
-        required: ["guest_name", "guest_phone", "date", "time", "party_size"],
+        required: ["guest_name", "date", "time", "party_size"],
       },
     },
   },

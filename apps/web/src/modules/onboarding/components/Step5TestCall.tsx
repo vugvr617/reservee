@@ -6,7 +6,6 @@ import { Loader2, Phone, CheckCircle2, Circle } from 'lucide-react';
 import { completeOnboarding, getPrimaryPhoneNumber } from '../actions';
 
 interface Step5TestCallProps {
-  onBack: () => void;
   onComplete: () => void;
   phoneNumber: string;
 }
@@ -17,7 +16,7 @@ interface ChecklistItem {
   checked: boolean;
 }
 
-export default function Step5TestCall({ onBack, onComplete, phoneNumber: initialPhoneNumber }: Step5TestCallProps) {
+export default function Step5TestCall({ onComplete, phoneNumber: initialPhoneNumber }: Step5TestCallProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState<string>(initialPhoneNumber);
@@ -25,7 +24,6 @@ export default function Step5TestCall({ onBack, onComplete, phoneNumber: initial
     { id: 'called', label: 'I called the phone number', checked: false },
     { id: 'ai_answered', label: 'AI receptionist answered the call', checked: false },
     { id: 'greeting_correct', label: 'Greeting message was correct', checked: false },
-    { id: 'responses_good', label: 'AI responded appropriately to my questions', checked: false },
   ]);
 
   useEffect(() => {
@@ -115,10 +113,6 @@ export default function Step5TestCall({ onBack, onComplete, phoneNumber: initial
             <span className="font-semibold min-w-[20px]">3.</span>
             <span>Ask questions about your venue (hours, location, reservations)</span>
           </li>
-          <li className="flex gap-2">
-            <span className="font-semibold min-w-[20px]">4.</span>
-            <span>Optionally, ask to speak with a person to test call transfer</span>
-          </li>
         </ol>
       </div>
 
@@ -160,20 +154,11 @@ export default function Step5TestCall({ onBack, onComplete, phoneNumber: initial
       )}
 
       {/* Action Buttons */}
-      <div className="flex gap-4">
-        <Button
-          type="button"
-          onClick={onBack}
-          disabled={isLoading}
-          variant="outline"
-          className="flex-1 h-12 border-gray-300 rounded-xl text-base font-medium hover:bg-gray-50"
-        >
-          Back
-        </Button>
+      <div className="flex">
         <Button
           onClick={handleComplete}
           disabled={!allChecked || isLoading}
-          className="flex-1 h-12 bg-black hover:bg-gray-900 text-white rounded-xl text-base font-medium shadow-lg shadow-green-400/10 hover:shadow-green-400/20 transition-all disabled:opacity-50"
+          className="w-full h-12 bg-black hover:bg-gray-900 text-white rounded-xl text-base font-medium shadow-lg shadow-green-400/10 hover:shadow-green-400/20 transition-all disabled:opacity-50"
         >
           {isLoading ? (
             <>

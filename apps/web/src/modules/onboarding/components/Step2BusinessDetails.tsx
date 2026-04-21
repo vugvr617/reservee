@@ -3,11 +3,14 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Clock, Loader2 } from "lucide-react";
+import { Clock, Copy as CopyIcon, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { saveStep2 } from "../actions";
 import { TimeSlot, VenueData } from "../types";
 import { DEFAULT_SCHEDULE } from "../constants";
+
+const WEEKDAYS = new Set(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]);
 
 interface Step2BusinessDetailsProps {
   onNext: () => void;
@@ -65,6 +68,33 @@ export default function Step2BusinessDetails({
     );
   };
 
+  const applyMondayToWeekdays = () => {
+    const monday = schedule.find((s) => s.day === "Monday");
+    if (!monday) return;
+    setSchedule((prev) =>
+      prev.map((slot) =>
+        WEEKDAYS.has(slot.day)
+          ? { ...slot, open: monday.open, close: monday.close, closed: monday.closed }
+          : slot
+      )
+    );
+    toast.success("Copied Monday's hours to all weekdays");
+  };
+
+  const applyMondayToAll = () => {
+    const monday = schedule.find((s) => s.day === "Monday");
+    if (!monday) return;
+    setSchedule((prev) =>
+      prev.map((slot) => ({
+        ...slot,
+        open: monday.open,
+        close: monday.close,
+        closed: monday.closed,
+      }))
+    );
+    toast.success("Copied Monday's hours to every day");
+  };
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -86,6 +116,30 @@ export default function Step2BusinessDetails({
             <Label className="text-base font-semibold text-gray-900">
               Opening Hours
             </Label>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-gray-500 mr-1">Quick copy:</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1.5 border-gray-200"
+              onClick={applyMondayToWeekdays}
+            >
+              <CopyIcon className="h-3 w-3" />
+              Monday → Weekdays
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1.5 border-gray-200"
+              onClick={applyMondayToAll}
+            >
+              <CopyIcon className="h-3 w-3" />
+              Monday → All Days
+            </Button>
           </div>
 
           <div className="space-y-2">
