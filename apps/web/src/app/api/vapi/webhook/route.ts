@@ -25,6 +25,17 @@ function formatTimeSpoken(timeStr: string): string {
   return `${hour12}:${minutes.toString().padStart(2, "0")} ${period}`;
 }
 
+async function getMaxTableCapacity(venueId: string): Promise<number> {
+  const { data } = await supabase
+    .from("tables")
+    .select("max_capacity")
+    .eq("venue_id", venueId)
+    .eq("is_active", true)
+    .order("max_capacity", { ascending: false })
+    .limit(1);
+  return data?.[0]?.max_capacity ?? 0;
+}
+
 interface ToolCall {
   id: string;
   name?: string;
@@ -307,6 +318,16 @@ async function handleCheckAvailability(
     }
   }
 
+  const maxCapacity = await getMaxTableCapacity(venueId);
+  if (partySize > maxCapacity) {
+    log("INFO", "check_availability:exceeds-max-capacity", {
+      requestId,
+      partySize,
+      maxCapacity,
+    });
+    return `${existingNote}Our largest table seats ${maxCapacity}, so we cannot accommodate a party of ${partySize}. Would you like to reduce the party size or split into two reservations?`;
+  }
+
   const result = await getAvailableTablesForSlot(
     supabase,
     venueId,
@@ -366,6 +387,16 @@ async function handleCreateReservation(
     partySize,
     specialRequests,
   });
+
+  const maxCapacity = await getMaxTableCapacity(venueId);
+  if (partySize > maxCapacity) {
+    log("INFO", "create_reservation:exceeds-max-capacity", {
+      requestId,
+      partySize,
+      maxCapacity,
+    });
+    return `Our largest table seats ${maxCapacity}, so we cannot accommodate a party of ${partySize}. Would you like to reduce the party size or split into two reservations?`;
+  }
 
   // Find a suitable table
   const tablesResult = await getAvailableTablesForSlot(
@@ -497,8 +528,22 @@ async function handleModifyReservation(
   const updatedTime: string = newTime || match.reservationTime;
   const updatedPartySize: number = newPartySize || match.partySize;
 
-  // Check availability for the new slot if date or time changed
-  if (newDate || newTime) {
+  let assignedTableId: string | null | undefined = match.tableId as string | null | undefined;
+
+  // Check availability whenever date, time, or party size changed.
+  // Party-size-only changes also need the check, otherwise we'd silently
+  // save a party that doesn't fit the existing table.
+  if (newDate || newTime || newPartySize) {
+    const maxCapacity = await getMaxTableCapacity(venueId);
+    if (updatedPartySize > maxCapacity) {
+      log("INFO", "modify_reservation:exceeds-max-capacity", {
+        requestId,
+        updatedPartySize,
+        maxCapacity,
+      });
+      return `Our largest table seats ${maxCapacity}, so we cannot accommodate a party of ${updatedPartySize}. Would you like to reduce the party size or split into two reservations?`;
+    }
+
     const availability = await getAvailableTablesForSlot(
       supabase,
       venueId,
@@ -520,6 +565,19 @@ async function handleModifyReservation(
     if (!availability.success || !availability.data || availability.data.length === 0) {
       return `No tables available for ${updatedPartySize} guests at ${formatTimeSpoken(updatedTime)} on ${formatDateSpoken(updatedDate)}. Would you like to try a different time?`;
     }
+
+    // Reassign table only if the current one no longer fits the new combo.
+    const currentTableStillFits = assignedTableId
+      ? availability.data.some((t) => t.id === assignedTableId)
+      : false;
+    if (!currentTableStillFits) {
+      assignedTableId = availability.data[0].id;
+      log("INFO", "modify_reservation:table-reassigned", {
+        requestId,
+        previousTableId: match.tableId,
+        newTableId: assignedTableId,
+      });
+    }
   }
 
   const specialRequests = (args.special_requests as string) || undefined;
@@ -532,7 +590,7 @@ async function handleModifyReservation(
     partySize: updatedPartySize,
     reservationDate: updatedDate,
     reservationTime: updatedTime,
-    tableId: match.tableId as string | null | undefined,
+    tableId: assignedTableId,
     specialRequests: specialRequests || (match.specialRequests as string | null) || undefined,
     performedBy: "ai_call",
   });
