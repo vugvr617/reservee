@@ -42,14 +42,15 @@ export function DashboardLayout({
     name: string;
     maxCapacity: number | null;
   } | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
 
-  // Fetch today's reservations for table coloring
-  const todayStr = format(new Date(), "yyyy-MM-dd");
-  const { data: todayReservations = [] } = useReservationsForDate(venueId, todayStr);
+  // Fetch reservations for the selected date — drives table coloring AND the guest list panel
+  const dateStr = format(selectedDate, "yyyy-MM-dd");
+  const { data: selectedDateReservations = [] } = useReservationsForDate(venueId, dateStr);
 
   // Walk-in mutations
   const walkInMutation = useCreateWalkIn(venueId);
-  const statusMutation = useUpdateReservationStatus(venueId, todayStr);
+  const statusMutation = useUpdateReservationStatus(venueId, dateStr);
 
   const handleSeatWalkIn = (tableId: string) => {
     const table = tables.find((t: { id: string; table_identifier: string; max_capacity?: number | null }) => t.id === tableId);
@@ -97,19 +98,19 @@ export function DashboardLayout({
   // Compute reservation counts per table (exclude cancelled/no_show/completed)
   const tableReservationCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const r of todayReservations) {
+    for (const r of selectedDateReservations) {
       if (r.tableId && r.status !== "cancelled" && r.status !== "no_show" && r.status !== "completed") {
         counts[r.tableId] = (counts[r.tableId] || 0) + 1;
       }
     }
     return counts;
-  }, [todayReservations]);
+  }, [selectedDateReservations]);
 
-  // Get today's reservations filtered for the popup table
+  // Filter the selected-date reservations for the clicked table (drives the popup)
   const popupTodayReservations = useMemo(() => {
     if (!popupTable) return [];
-    return todayReservations.filter((r) => r.tableId === popupTable.id);
-  }, [todayReservations, popupTable]);
+    return selectedDateReservations.filter((r) => r.tableId === popupTable.id);
+  }, [selectedDateReservations, popupTable]);
 
   // Handle create reservation from table popup
   const handleCreateReservation = useCallback((tableId: string) => {
@@ -266,6 +267,8 @@ export function DashboardLayout({
             <GuestListPanel
               isCollapsed={isGuestPanelCollapsed}
               venueId={venueId}
+              selectedDate={selectedDate}
+              onSelectedDateChange={setSelectedDate}
               externalDetailReservation={externalDetailReservation}
               onExternalDetailConsumed={() => setExternalDetailReservation(null)}
               externalCreateForTableId={externalCreateForTableId}

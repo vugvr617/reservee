@@ -67,6 +67,8 @@ import {
 interface GuestListPanelProps {
   isCollapsed: boolean;
   venueId: string;
+  selectedDate: Date;
+  onSelectedDateChange: (date: Date) => void;
   externalDetailReservation?: ReservationWithDetails | null;
   onExternalDetailConsumed?: () => void;
   externalCreateForTableId?: string | null;
@@ -309,9 +311,9 @@ function TimelineWithNowMarker({
 // Component
 // ============================================
 
-export function GuestListPanel({ isCollapsed, venueId, externalDetailReservation, onExternalDetailConsumed, externalCreateForTableId, onExternalCreateConsumed }: GuestListPanelProps) {
+export function GuestListPanel({ isCollapsed, venueId, selectedDate, onSelectedDateChange, externalDetailReservation, onExternalDetailConsumed, externalCreateForTableId, onExternalCreateConsumed }: GuestListPanelProps) {
   const [detailReservation, setDetailReservation] = useState<ReservationWithDetails | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const setSelectedDate = onSelectedDateChange;
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isNewReservationOpen, setIsNewReservationOpen] = useState(false);

@@ -205,7 +205,7 @@ async function executeToolCall(
 
     switch (name) {
       case "check_availability":
-        result = await handleCheckAvailability(venueId, args, requestId);
+        result = await handleCheckAvailability(venueId, args, callerPhone, requestId);
         break;
 
       case "create_reservation":
@@ -267,6 +267,7 @@ async function executeToolCall(
 async function handleCheckAvailability(
   venueId: string,
   args: Record<string, unknown>,
+  callerPhone: string | undefined,
   requestId: string
 ): Promise<string> {
   const date = args.date as string;
@@ -279,7 +280,32 @@ async function handleCheckAvailability(
     date,
     time,
     partySize,
+    callerPhone,
   });
+
+  let existingNote = "";
+  if (callerPhone) {
+    const { data: existing } = await supabase
+      .from("reservations")
+      .select("reservation_time, party_size")
+      .eq("venue_id", venueId)
+      .eq("guest_phone", callerPhone)
+      .eq("reservation_date", date)
+      .neq("status", "cancelled")
+      .neq("status", "no_show")
+      .neq("status", "completed")
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      const e = existing[0];
+      existingNote = `Heads up: this caller already has a reservation on ${formatDateSpoken(date)} at ${formatTimeSpoken(e.reservation_time)} for ${e.party_size}. Acknowledge it and ask whether they'd like to modify their existing booking or add a separate additional one before proceeding. `;
+      log("INFO", "check_availability:existing-found", {
+        requestId,
+        existingTime: e.reservation_time,
+        existingPartySize: e.party_size,
+      });
+    }
+  }
 
   const result = await getAvailableTablesForSlot(
     supabase,
@@ -311,10 +337,10 @@ async function handleCheckAvailability(
   });
 
   if (result.data.length === 0) {
-    return `No tables available for ${partySize} guests at ${formatTimeSpoken(time)} on ${formatDateSpoken(date)}. Would you like to try a different time?`;
+    return `${existingNote}No tables available for ${partySize} guests at ${formatTimeSpoken(time)} on ${formatDateSpoken(date)}. Would you like to try a different time?`;
   }
 
-  return `${result.data.length} table(s) available for ${partySize} guests at ${formatTimeSpoken(time)} on ${formatDateSpoken(date)}. Shall I book one for you?`;
+  return `${existingNote}${result.data.length} table(s) available for ${partySize} guests at ${formatTimeSpoken(time)} on ${formatDateSpoken(date)}. Shall I book one for you?`;
 }
 
 async function handleCreateReservation(
