@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Settings,
@@ -23,6 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { getCurrentUserRole } from "@/modules/dashboard/get-current-venue";
 
 type NavItem = {
   label: string;
@@ -65,6 +66,34 @@ export function NavigationSidebar() {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { data: session } = useSession();
+  const [role, setRole] = useState<"admin" | "staff" | null>(null);
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    let cancelled = false;
+    getCurrentUserRole()
+      .then((r) => {
+        if (!cancelled) setRole(r);
+      })
+      .catch(() => {
+        if (!cancelled) setRole("admin");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id]);
+
+  const visibleNavGroups: NavGroup[] =
+    role === "staff"
+      ? [
+          {
+            label: "Workspace",
+            items: [
+              { label: "Floor Plan", path: "/dashboard", icon: LayoutDashboard },
+            ],
+          },
+        ]
+      : NAV_GROUPS;
 
   const handleSignOut = async () => {
     await signOut();
@@ -119,7 +148,7 @@ export function NavigationSidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 pb-4 overflow-y-auto">
-        {NAV_GROUPS.map((group, idx) => (
+        {visibleNavGroups.map((group, idx) => (
           <div key={group.label} className={idx > 0 ? "mt-5" : "mt-2"}>
             {!isCollapsed && (
               <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-[0.08em] mb-1.5 px-3">
@@ -212,11 +241,15 @@ export function NavigationSidebar() {
                 <DropdownMenuSeparator />
               </>
             )}
-            <DropdownMenuItem onClick={() => router.push("/dashboard/settings")}>
-              <Settings className="h-4 w-4 mr-2" />
-              Settings
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
+            {role !== "staff" && (
+              <>
+                <DropdownMenuItem onClick={() => router.push("/dashboard/settings")}>
+                  <Settings className="h-4 w-4 mr-2" />
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuItem
               onClick={handleSignOut}
               className="text-red-600 focus:text-red-700 focus:bg-red-50"

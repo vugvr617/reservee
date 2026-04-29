@@ -9,6 +9,7 @@ import { ProfileSection } from "./ProfileSection";
 import { OperatingHoursSection } from "./OperatingHoursSection";
 import { AIAgentSection } from "./AIAgentSection";
 import { PhoneSection } from "./PhoneSection";
+import { TeamSection } from "./TeamSection";
 
 interface SettingsPageProps {
   venueId: string;
@@ -100,6 +101,12 @@ export function SettingsPage({ venueId }: SettingsPageProps) {
             >
               Phone Number
             </TabsTrigger>
+            <TabsTrigger
+              value="team"
+              className="data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm rounded-md px-4 py-2 text-sm"
+            >
+              Team
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="profile">
@@ -116,6 +123,10 @@ export function SettingsPage({ venueId }: SettingsPageProps) {
 
           <TabsContent value="phone">
             <PhoneSection venue={venue} phoneData={phoneData} onUpdated={loadData} />
+          </TabsContent>
+
+          <TabsContent value="team">
+            <TeamSection />
           </TabsContent>
         </Tabs>
       </div>

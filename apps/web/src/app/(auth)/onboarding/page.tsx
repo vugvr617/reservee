@@ -2,6 +2,7 @@ import { getVenue } from "@/modules/onboarding/actions";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { supabase } from "@/lib/supabase";
 import OnboardingClient from "./OnboardingClient";
 
 export default async function OnboardingPage() {
@@ -11,6 +12,16 @@ export default async function OnboardingPage() {
 
   if (!session?.user?.id) {
     redirect("/login");
+  }
+
+  const { data: userRow } = await supabase
+    .from("user")
+    .select("role")
+    .eq("id", session.user.id)
+    .maybeSingle();
+
+  if (userRow?.role === "staff") {
+    redirect("/dashboard");
   }
 
   const venue = await getVenue();

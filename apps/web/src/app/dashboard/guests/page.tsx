@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getVenue } from "@/modules/onboarding/actions";
+import { requireAdminOrRedirect } from "@/lib/require-admin";
 import GuestsClient from "./GuestsClient";
 
 export default async function GuestsPage() {
@@ -12,6 +13,8 @@ export default async function GuestsPage() {
   if (!session?.user?.id) {
     redirect("/login");
   }
+
+  await requireAdminOrRedirect();
 
   const venue = await getVenue();
 
