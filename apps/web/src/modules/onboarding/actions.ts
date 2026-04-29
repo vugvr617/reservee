@@ -19,14 +19,30 @@ export async function getVenue(): Promise<VenueData | null> {
   const session = await getSession();
   if (!session?.user?.id) return null;
 
-  const { data, error } = await supabase
+  const { data: ownVenue } = await supabase
     .from("venue")
     .select("*")
     .eq("userId", session.user.id)
+    .maybeSingle();
+
+  if (ownVenue) return normalizeVenue(ownVenue);
+
+  const { data: userRow } = await supabase
+    .from("user")
+    .select("staff_venue_id")
+    .eq("id", session.user.id)
+    .maybeSingle();
+
+  if (!userRow?.staff_venue_id) return null;
+
+  const { data: staffVenue, error } = await supabase
+    .from("venue")
+    .select("*")
+    .eq("id", userRow.staff_venue_id)
     .single();
 
-  if (error || !data) return null;
-  return normalizeVenue(data);
+  if (error || !staffVenue) return null;
+  return normalizeVenue(staffVenue);
 }
 
 export async function saveStep1(formData: Step1FormData): Promise<{ success: boolean; error?: string }> {
