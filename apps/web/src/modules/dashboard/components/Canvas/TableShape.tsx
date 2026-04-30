@@ -402,6 +402,11 @@ export function TableShape({
   // Extract just the number from table identifier (e.g., "Table 5" -> "5")
   const tableNumber = tableIdentifier.replace(/[^\d]/g, '') || tableIdentifier;
 
+  // Scale text sizes to the table so labels stay readable regardless of table dimensions.
+  const tableMinDim = Math.min(width, height);
+  const numberFontSize = Math.max(20, Math.min(72, tableMinDim * 0.28));
+  const countFontSize = Math.max(12, Math.min(28, tableMinDim * 0.09));
+
   // Simplified table rendering
   const renderShape = () => {
     const commonProps = {
@@ -465,12 +470,12 @@ export function TableShape({
       {/* Table number - large and centered */}
       <Text
         text={tableNumber}
-        fontSize={32}
+        fontSize={numberFontSize}
         fontFamily="Inter, sans-serif"
         fontStyle="600"
         fill="#9ca3af"
         x={0}
-        y={height / 2 - 16}
+        y={height / 2 - numberFontSize / 2}
         width={width}
         align="center"
         listening={false}
@@ -496,12 +501,12 @@ export function TableShape({
       {readOnly && reservationCount > 0 && (
         <Text
           text={`${reservationCount} ${reservationCount === 1 ? "reservation" : "reservations"}`}
-          fontSize={14}
+          fontSize={countFontSize}
           fontFamily="Inter, sans-serif"
           fontStyle="500"
           fill={reservationCount >= 5 ? "#ef4444" : reservationCount >= 3 ? "#d97706" : "#22c55e"}
           x={0}
-          y={height / 2 + 22}
+          y={height / 2 + numberFontSize / 2 + 6}
           width={width}
           align="center"
           listening={false}
