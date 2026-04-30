@@ -23,8 +23,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check if user has a session cookie
-  const sessionToken = request.cookies.get("better-auth.session_token");
+  // Check if user has a session cookie. In production better-auth uses the
+  // __Secure- prefix because useSecureCookies is enabled, so check both.
+  const sessionToken =
+    request.cookies.get("better-auth.session_token") ??
+    request.cookies.get("__Secure-better-auth.session_token");
   const isAuthenticated = !!sessionToken;
 
   const isPublicRoute = PUBLIC_ROUTES.includes(pathname);
