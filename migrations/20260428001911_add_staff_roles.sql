@@ -1,6 +1,3 @@
--- Add role and staff_venue_id to the user table so admins can invite
--- restricted "staff" users that share an admin's venue.
-
 ALTER TABLE "user"
   ADD COLUMN IF NOT EXISTS "role" text NOT NULL DEFAULT 'admin'
     CHECK ("role" IN ('admin', 'staff'));
