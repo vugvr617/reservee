@@ -1,0 +1,12 @@
+name: Reservee Voice Agent
+values:
+  - key: base_url
+    value: ''
+  - key: assistant_id
+    value: ''
+  - key: caller_main
+    value: ''
+  - key: caller_other
+    value: ''
+  - key: test_date
+    value: ''

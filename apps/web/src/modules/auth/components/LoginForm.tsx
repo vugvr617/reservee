@@ -112,28 +112,20 @@ export default function LoginForm() {
         </div>
 
         {/* Remember me */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="remember"
-              checked={rememberMe}
-              onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-              disabled={isLoading}
-              className="rounded border-gray-300 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
-            />
-            <Label
-              htmlFor="remember"
-              className="text-sm text-gray-600 cursor-pointer"
-            >
-              Remember me
-            </Label>
-          </div>
-          <Link
-            href="/forgot-password"
-            className="text-sm text-green-600 hover:text-green-700 font-medium"
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="remember"
+            checked={rememberMe}
+            onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+            disabled={isLoading}
+            className="rounded border-gray-300 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
+          />
+          <Label
+            htmlFor="remember"
+            className="text-sm text-gray-600 cursor-pointer"
           >
-            Forgot Password?
-          </Link>
+            Remember me
+          </Label>
         </div>
 
         {/* Submit button */}
