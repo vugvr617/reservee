@@ -1,0 +1,5 @@
+$kind: http-request
+name: check_availability – success
+url: ""
+method: GET
+order: 4156029932888943

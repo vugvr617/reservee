@@ -7,23 +7,13 @@ import {
   updateReservation,
   cancelReservation,
 } from "@/lib/domain/reservations/service";
-
-function formatDateSpoken(dateStr: string): string {
-  const date = new Date(dateStr + "T00:00:00");
-  return date.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
-}
-
-function formatTimeSpoken(timeStr: string): string {
-  const [hours, minutes] = timeStr.split(":").map(Number);
-  const period = hours >= 12 ? "PM" : "AM";
-  const hour12 = hours % 12 || 12;
-  if (minutes === 0) return `${hour12} ${period}`;
-  return `${hour12}:${minutes.toString().padStart(2, "0")} ${period}`;
-}
+import {
+  formatDateSpoken,
+  formatTimeSpoken,
+  normalizePhone,
+  normalizeToolCall,
+  type VapiToolCall,
+} from "@/lib/utils/voice-formatting";
 
 async function getMaxTableCapacity(venueId: string): Promise<number> {
   const { data } = await supabase
@@ -36,20 +26,10 @@ async function getMaxTableCapacity(venueId: string): Promise<number> {
   return data?.[0]?.max_capacity ?? 0;
 }
 
-interface ToolCall {
-  id: string;
-  name?: string;
-  arguments?: Record<string, unknown>;
-  function?: {
-    name: string;
-    arguments: string | Record<string, unknown>;
-  };
-}
-
 interface VapiMessage {
   message: {
     type: string;
-    toolCallList?: ToolCall[];
+    toolCallList?: VapiToolCall[];
     call?: {
       id: string;
       assistantId?: string;
@@ -95,7 +75,7 @@ export async function POST(request: NextRequest) {
       assistantId: message.call?.assistantId,
       callerPhone: message.call?.customer?.number,
       toolCallCount: message.toolCallList?.length ?? 0,
-      toolCallNames: message.toolCallList?.map((tc: ToolCall) => tc.name) ?? [],
+      toolCallNames: message.toolCallList?.map((tc: VapiToolCall) => tc.name) ?? [],
     });
 
     switch (message.type) {
@@ -186,18 +166,12 @@ async function handleToolCalls(message: VapiMessage["message"], requestId: strin
 }
 
 async function executeToolCall(
-  toolCall: ToolCall,
+  toolCall: VapiToolCall,
   venueId: string,
   callerPhone: string | undefined,
   requestId: string
 ) {
-  // Normalize: Vapi sends name/arguments at top level for model.tools,
-  // but under function.name / function.arguments for Custom Tools
-  const id = toolCall.id;
-  const name = toolCall.name || toolCall.function?.name || "unknown";
-  const rawArgs = toolCall.arguments || toolCall.function?.arguments || {};
-  const args: Record<string, unknown> =
-    typeof rawArgs === "string" ? JSON.parse(rawArgs) : rawArgs;
+  const { id, name, args } = normalizeToolCall(toolCall);
   const startTime = Date.now();
 
   console.log(`>>> [${requestId}] TOOL CALL: ${name}(${JSON.stringify(args)})`);
@@ -370,7 +344,7 @@ async function handleCreateReservation(
   callerPhone: string | undefined,
   requestId: string
 ): Promise<string> {
-  const guestName = args.guest_name as string;
+  const guestName = ((args.guest_name as string) || "").trim();
   const guestPhone = callerPhone || "";
   const date = args.date as string;
   const time = args.time as string;
@@ -387,6 +361,13 @@ async function handleCreateReservation(
     partySize,
     specialRequests,
   });
+
+  // Reject empty / placeholder names so the model goes back and asks the caller.
+  const NAME_PLACEHOLDER = /^(unknown|guest|caller|anonymous|n\/?a|none|test|the\s+caller)$/i;
+  if (!guestName || guestName.length < 2 || NAME_PLACEHOLDER.test(guestName)) {
+    log("WARN", "create_reservation:placeholder-name", { requestId, guestName });
+    return "I need the name to book under. What name should I put the reservation under?";
+  }
 
   const maxCapacity = await getMaxTableCapacity(venueId);
   if (partySize > maxCapacity) {
@@ -765,11 +746,6 @@ async function handleGetReservations(
 // ============================================
 // Helpers
 // ============================================
-
-function normalizePhone(phone: string | null | undefined): string {
-  if (!phone) return "";
-  return phone.replace(/[^0-9+]/g, "");
-}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function findReservationByPhone(
