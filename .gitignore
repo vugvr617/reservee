@@ -35,3 +35,7 @@ thesis_latex_docs/
 project_management/
 THESIS_PLAN.md
 
+# Presentation / thesis-defense scratch (slides, scripts, exported images)
+presentation/
+texput.log
+

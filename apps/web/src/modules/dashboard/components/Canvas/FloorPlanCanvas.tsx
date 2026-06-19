@@ -218,6 +218,16 @@ export function FloorPlanCanvas({ readOnly = false, tableReservationCounts, onTa
     }
   }, [currentFloorId, borders, stageSize.width, stageSize.height, readOnly, setStageScale, setStagePosition]);
 
+  // Dimensions of the currently selected element — when these change (e.g. after a
+  // resize commits to the store), the transformer must re-measure its handles.
+  const selectedTable = tables.find((t: CanvasTable) => t.id === selectedTableId);
+  const selectedBorder = borders.find((b: Border) => b.id === selectedBorderId);
+  const selectedGeomKey = selectedTable
+    ? `t:${selectedTable.width}x${selectedTable.height}`
+    : selectedBorder
+    ? `b:${selectedBorder.width}x${selectedBorder.height}`
+    : null;
+
   // Transformer setup
   useEffect(() => {
     const transformer = transformerRef.current;
@@ -237,12 +247,14 @@ export function FloorPlanCanvas({ readOnly = false, tableReservationCounts, onTa
         "top-left", "top-right", "bottom-left", "bottom-right",
         "top-center", "middle-right", "bottom-center", "middle-left",
       ] : ["top-left", "top-right", "bottom-left", "bottom-right"]);
+      // Re-measure against the node's current (re-rendered) size.
+      transformer.forceUpdate();
       transformer.getLayer()?.batchDraw();
     } else {
       transformer.nodes([]);
       transformer.getLayer()?.batchDraw();
     }
-  }, [selectedTableId, selectedBorderId, currentTool]);
+  }, [selectedTableId, selectedBorderId, currentTool, selectedGeomKey]);
 
   // Canvas bounds
   const getCanvasBounds = () => {

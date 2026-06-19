@@ -7,14 +7,17 @@ import { Button } from "@/components/ui/button";
 import { NavigationSidebar } from "./NavigationSidebar";
 import { FloorTabs } from "./FloorTabs";
 import { FloorPlanCanvas } from "./Canvas/FloorPlanCanvas";
+import { FloorPlanView } from "./FloorPlanView";
+import { FloorStatsBar } from "./FloorStatsBar";
 import { EditModeModal } from "./EditModeModal";
 import { GuestListPanel } from "./GuestListPanel";
 import { TableReservationPopup } from "./TableReservationPopup";
 import { WalkInDialog } from "./WalkInDialog";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useReservationsForDate, useCreateWalkIn, useUpdateReservationStatus } from "../hooks/use-reservations";
+import { getFloorStatus } from "../utils/table-status";
 import { toast } from "sonner";
-import type { Floor, TableData, ReservationWithDetails } from "@/modules/dashboard/types";
+import type { Floor, TableData, CanvasTable, ReservationWithDetails } from "@/modules/dashboard/types";
 
 interface DashboardLayoutProps {
   venueId: string;
@@ -44,8 +47,16 @@ export function DashboardLayout({
   } | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
 
-  // Fetch reservations for the selected date — drives table coloring AND the guest list panel
+  // Tick the clock every minute so "overdue" status and stats stay current.
+  const [now, setNow] = useState<Date>(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Fetch reservations for the selected date — drives table status AND the guest list panel
   const dateStr = format(selectedDate, "yyyy-MM-dd");
+  const isToday = dateStr === format(now, "yyyy-MM-dd");
   const { data: selectedDateReservations = [] } = useReservationsForDate(venueId, dateStr);
 
   // Walk-in mutations
@@ -95,16 +106,20 @@ export function DashboardLayout({
     }
   };
 
-  // Compute reservation counts per table (exclude cancelled/no_show/completed)
-  const tableReservationCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
+  // Group the selected-date reservations by table.
+  const reservationsByTable = useMemo(() => {
+    const map: Record<string, ReservationWithDetails[]> = {};
     for (const r of selectedDateReservations) {
-      if (r.tableId && r.status !== "cancelled" && r.status !== "no_show" && r.status !== "completed") {
-        counts[r.tableId] = (counts[r.tableId] || 0) + 1;
-      }
+      if (r.tableId) (map[r.tableId] ??= []).push(r);
     }
-    return counts;
+    return map;
   }, [selectedDateReservations]);
+
+  // Derive each table's live status + the current floor's aggregate stats.
+  const { statusByTable, stats } = useMemo(() => {
+    const floorTables = tables.filter((t: CanvasTable) => t.floor_id === currentFloorId);
+    return getFloorStatus(floorTables, reservationsByTable, isToday ? now : null);
+  }, [tables, currentFloorId, reservationsByTable, isToday, now]);
 
   // Filter the selected-date reservations for the clicked table (drives the popup)
   const popupTodayReservations = useMemo(() => {
@@ -196,31 +211,54 @@ export function DashboardLayout({
         {/* Main Content Area */}
         <div className="flex flex-1 min-h-0 overflow-hidden">
           {/* Canvas Area */}
-          <main className="flex-1 min-w-0 relative bg-white">
+          <main className="flex flex-1 min-w-0 flex-col relative bg-white">
           {currentFloorId ? (
             <>
-              <FloorPlanCanvas
-                readOnly={!isEditMode}
-                tableReservationCounts={!isEditMode ? tableReservationCounts : undefined}
-                onTableClick={!isEditMode ? handleTableClick : undefined}
-              />
+              {/* Today's stats bar (read-only view only) */}
+              {!isEditMode && <FloorStatsBar stats={stats} isToday={isToday} />}
 
-              {/* Table Reservation Popup */}
-              {!isEditMode && popupTable && (
-                <TableReservationPopup
-                  tableId={popupTable.id}
-                  tableName={popupTable.name}
-                  screenPos={popupTable.screenPos}
-                  todayReservations={popupTodayReservations}
-                  onClose={() => setPopupTable(null)}
-                  onReservationClick={handlePopupReservationClick}
-                  onCreateReservation={handleCreateReservation}
-                  onSeatWalkIn={handleSeatWalkIn}
-                  onFreeTable={handleFreeTable}
-                  isSeatingWalkIn={walkInMutation.isPending}
-                  isFreeingTable={statusMutation.isPending}
-                />
-              )}
+              <div className="relative flex-1 min-h-0">
+                {isEditMode ? (
+                  <FloorPlanCanvas readOnly={false} />
+                ) : (
+                  <FloorPlanView statusByTable={statusByTable} onTableClick={handleTableClick} />
+                )}
+
+                {/* Table Reservation Popup */}
+                {!isEditMode && popupTable && (
+                  <TableReservationPopup
+                    tableId={popupTable.id}
+                    tableName={popupTable.name}
+                    screenPos={popupTable.screenPos}
+                    todayReservations={popupTodayReservations}
+                    onClose={() => setPopupTable(null)}
+                    onReservationClick={handlePopupReservationClick}
+                    onCreateReservation={handleCreateReservation}
+                    onSeatWalkIn={handleSeatWalkIn}
+                    onFreeTable={handleFreeTable}
+                    isSeatingWalkIn={walkInMutation.isPending}
+                    isFreeingTable={statusMutation.isPending}
+                  />
+                )}
+
+                {/* Panel Toggle Button - Floating */}
+                {!isEditMode && (
+                  <div className="absolute top-4 right-4 z-20">
+                    <Button
+                      onClick={() => setIsGuestPanelCollapsed(!isGuestPanelCollapsed)}
+                      variant="outline"
+                      size="icon"
+                      className="bg-white hover:bg-gray-50"
+                    >
+                      {isGuestPanelCollapsed ? (
+                        <PanelRightOpen className="h-4 w-4" />
+                      ) : (
+                        <PanelRightClose className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
 
               {/* Walk-in Dialog */}
               <WalkInDialog
@@ -233,24 +271,6 @@ export function DashboardLayout({
                 isSubmitting={walkInMutation.isPending}
                 onSubmit={handleConfirmWalkIn}
               />
-
-              {/* Panel Toggle Button - Floating */}
-              {!isEditMode && (
-                <div className="absolute top-4 right-4 z-20">
-                  <Button
-                    onClick={() => setIsGuestPanelCollapsed(!isGuestPanelCollapsed)}
-                    variant="outline"
-                    size="icon"
-                    className="bg-white hover:bg-gray-50"
-                  >
-                    {isGuestPanelCollapsed ? (
-                      <PanelRightOpen className="h-4 w-4" />
-                    ) : (
-                      <PanelRightClose className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              )}
             </>
           ) : (
             <div className="flex items-center justify-center h-full">
